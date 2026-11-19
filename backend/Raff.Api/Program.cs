@@ -93,3 +93,6 @@ app.MapControllers();
 await DbSeeder.SeedAsync(app.Services, config.GetValue("Seed:DemoData", true));
 
 app.Run();
+
+// Lets the integration tests (WebApplicationFactory<Program>) reference the entry point.
+public partial class Program { }

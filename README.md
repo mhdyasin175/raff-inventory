@@ -22,6 +22,17 @@ The interface is bilingual: **Arabic (RTL) and English (LTR)**, switchable from 
 | **Reports** | Any date range: revenue, gross profit and margin, purchases, daily value chart, top-selling products by value or quantity, and stock value per category. |
 | **Users & roles** | Create and deactivate users, reset passwords, and a role × permission matrix with 11 permissions that you edit live. |
 
+### Tests
+
+- **API integration tests** (`backend/Raff.Api.Tests`, xUnit): the real API runs in memory against a **real SQL Server started in Docker** by Testcontainers. 26 test cases cover the stock rules (balances, no negative stock, stock counts need a reason, archive instead of delete), permissions per role, protections such as "the last admin can't be deactivated", report numbers (revenue, gross profit, category value, sorting), CSV export and message language.
+- **End-to-end tests** (`frontend/e2e`, Playwright): a real browser signs in with different roles, records a stock-in and checks the balance, checks that invalid movements are blocked, checks what each role can see, and switches language and look. They also run at phone size.
+- Both suites run in GitHub Actions on every push (see the CI badge above).
+
+```bash
+dotnet test Raff.slnx              # needs Docker running
+cd frontend && npx playwright install chromium && npm run test:e2e
+```
+
 ### Engineering details worth noting
 - **Permission-based authorization.** Every permission is registered as an ASP.NET Core policy (`[Authorize(Policy = Permissions.ProductsManage)]`) and issued as a `perm` claim in the JWT. The React app hides navigation and actions with the same keys.
 - **Stock can only change through movements.** On-hand quantity can't be edited directly. Every change is a `StockMovement` that stores the signed quantity, the resulting balance, the price, the user and the timestamp, so the history is a complete audit trail.

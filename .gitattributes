@@ -1,0 +1,4 @@
+# Keep line endings consistent (LF) in the repository and the working copy on every OS.
+* text=auto eol=lf
+*.png binary
+*.svg text eol=lf

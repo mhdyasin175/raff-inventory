@@ -8,3 +8,5 @@ node_modules/
 dist/
 *.local
 *.tsbuildinfo
+test-results/
+TestResults/
