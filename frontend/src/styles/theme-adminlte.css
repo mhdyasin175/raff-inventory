@@ -1,0 +1,254 @@
+/* ==========================================================================
+   Alternative look: AdminLTE 3 design language
+   (dark sidebar, white top navbar, breadcrumbs, colored small-boxes,
+   outlined cards, Bootstrap buttons/badges/progress bars).
+   Turned on with <html data-theme="adminlte">. Remove this file to drop the theme.
+   ========================================================================== */
+[data-theme='adminlte'] {
+  --concrete: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #f8f9fa;
+  --ink: #212529;
+  --ink-2: #343a40;
+  --steel: #6c757d;
+  --steel-2: #adb5bd;
+  --rule: #dee2e6;
+  --rule-strong: #ced4da;
+
+  --primary: #007bff;
+  --info: #17a2b8;
+  --success: #28a745;
+  --warning: #ffc107;
+  --danger: #dc3545;
+
+  --signal: var(--primary);
+  --signal-deep: #0062cc;
+  --signal-soft: #e7f1ff;
+  --in: var(--success);
+  --in-soft: #e8f6eb;
+  --out: var(--danger);
+  --out-soft: #fbe9eb;
+  --adj: var(--info);
+  --adj-soft: #e3f4f7;
+  --hazard: var(--warning);
+
+  --font-display: 'Source Sans 3', 'Cairo', system-ui, sans-serif;
+  --font-body: 'Source Sans 3', 'Cairo', system-ui, sans-serif;
+  --font-code: SFMono-Regular, Menlo, Consolas, monospace;
+
+  --r-sm: 4px;
+  --r-md: 4px;
+  --card-shadow: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --sidebar-w: 250px;
+}
+
+[data-theme='adminlte'] body { font-family: var(--font-body); font-size: 15px; background: var(--concrete); color: var(--ink); }
+[data-theme='adminlte'] h1 { font-size: 26px; font-weight: 400; }
+[data-theme='adminlte'] h2 { font-size: 17px; font-weight: 400; }
+[data-theme='adminlte'] :focus-visible { outline: 2px solid #80bdff; outline-offset: 1px; box-shadow: none; }
+
+/* ---------- sidebar ---------- */
+[data-theme='adminlte'] .sidebar {
+  background: #343a40; color: #c2c7d0; padding: 0 0 10px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+  z-index: 5;
+}
+[data-theme='adminlte'] .brand { height: 57px; padding: 0 16px; margin-bottom: 8px; border-bottom: 1px solid #4b545c; gap: 10px; }
+[data-theme='adminlte'] .brand-name { font-size: 20px; font-weight: 300; color: rgba(255, 255, 255, 0.85); }
+[data-theme='adminlte'] .brand-sub { display: none; }
+[data-theme='adminlte'] .brand svg { border-radius: 50%; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16); }
+[data-theme='adminlte'] .nav { padding: 0 8px; gap: 2px; }
+[data-theme='adminlte'] .nav-group { margin: 14px 8px 4px; color: #d0d4db; font-size: 13px; }
+[data-theme='adminlte'] .nav a { padding: 8px 14px; border-radius: 4px; color: #c2c7d0; font-size: 15px; }
+[data-theme='adminlte'] .nav a svg { opacity: 1; color: inherit; }
+[data-theme='adminlte'] .nav a:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+[data-theme='adminlte'] .nav a.active {
+  background: var(--primary); color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+[data-theme='adminlte'] .nav a.active svg { color: #fff; }
+[data-theme='adminlte'] .nav a.active::before { display: none; }
+[data-theme='adminlte'] .nav-count { background: var(--danger); color: #fff; border-radius: 4px; font-size: 11.5px; font-weight: 700; line-height: 18px; }
+[data-theme='adminlte'] .demo-ribbon { border-color: #6c757d; color: #c2c7d0; }
+[data-theme='adminlte'] .pref-seg button[aria-pressed='true'] { background: var(--primary); color: #fff; }
+[data-theme='adminlte'] .me { border-top-color: #4b545c; }
+[data-theme='adminlte'] .avatar { background: #6c757d; color: #fff; }
+@media (min-width: 961px) {
+  [data-theme='adminlte'] .shell.collapsed { grid-template-columns: 0 1fr; }
+  [data-theme='adminlte'] .shell.collapsed .sidebar { visibility: hidden; }
+}
+
+/* ---------- top navbar & content header ---------- */
+[data-theme='adminlte'] .main { padding: 0 0 48px; }
+[data-theme='adminlte'] .main > :not(.topbar):not(.overlay) { margin-inline: 22px; }
+[data-theme='adminlte'] .topbar {
+  display: flex; align-items: center; gap: 4px;
+  height: 57px; padding: 0 12px; margin-bottom: 18px;
+  background: #fff; border-bottom: 1px solid #dee2e6;
+  position: sticky; top: 0; z-index: 20;
+}
+[data-theme='adminlte'] .topbar-btn,
+[data-theme='adminlte'] .topbar-link {
+  display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px;
+  background: none; border: 0; color: rgba(0, 0, 0, 0.5); text-decoration: none; font-size: 15px; cursor: pointer; border-radius: 4px;
+}
+[data-theme='adminlte'] .topbar-btn:hover,
+[data-theme='adminlte'] .topbar-link:hover { color: rgba(0, 0, 0, 0.7); }
+[data-theme='adminlte'] .topbar-spacer { flex: 1; }
+[data-theme='adminlte'] .topbar-user { display: inline-flex; align-items: center; gap: 8px; padding: 0 10px; color: #495057; font-size: 15px; }
+[data-theme='adminlte'] .topbar-user .avatar { width: 30px; height: 30px; font-size: 13px; }
+[data-theme='adminlte'] .mobile-bar { display: none; }
+
+[data-theme='adminlte'] .page-head { align-items: center; margin-bottom: 16px; }
+[data-theme='adminlte'] .page-head .titles { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 16px; }
+[data-theme='adminlte'] .page-head p { flex-basis: 100%; font-size: 14px; }
+[data-theme='adminlte'] .crumbs { display: flex; list-style: none; margin: 0; padding: 0; font-size: 14px; color: var(--steel); order: 0; }
+[data-theme='adminlte'] .crumbs li:first-child { color: var(--primary); }
+[data-theme='adminlte'] .crumbs li + li::before { content: '/'; padding: 0 8px; color: var(--steel); }
+
+@media (max-width: 960px) {
+  [data-theme='adminlte'] .main > :not(.topbar):not(.overlay) { margin-inline: 12px; }
+}
+
+/* ---------- buttons, inputs, button groups ---------- */
+[data-theme='adminlte'] .btn {
+  height: 38px; padding: 0 12px; border-radius: 4px; font-size: 15px; font-weight: 400;
+  background: #f8f9fa; border-color: #ddd; color: #444;
+}
+[data-theme='adminlte'] .btn:hover { background: #e9ecef; border-color: #ddd; }
+[data-theme='adminlte'] .btn-primary,
+[data-theme='adminlte'] .btn-dark { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 400; box-shadow: none; }
+[data-theme='adminlte'] .btn-primary:hover,
+[data-theme='adminlte'] .btn-dark:hover { background: #0069d9; border-color: #0062cc; }
+[data-theme='adminlte'] .btn-danger { background: #fff; color: var(--danger); border-color: var(--danger); }
+[data-theme='adminlte'] .btn-danger:hover { background: var(--danger); color: #fff; }
+[data-theme='adminlte'] .btn-ghost { background: transparent; border-color: transparent; color: #adb5bd; }
+[data-theme='adminlte'] .btn-ghost:hover { background: transparent; color: #495057; }
+[data-theme='adminlte'] .btn-sm { height: 31px; font-size: 14px; padding: 0 8px; }
+[data-theme='adminlte'] .btn-icon { width: 32px; height: 32px; padding: 0; }
+
+[data-theme='adminlte'] .input,
+[data-theme='adminlte'] .select,
+[data-theme='adminlte'] .textarea { height: 38px; border-color: #ced4da; border-radius: 4px; font-size: 15px; color: #495057; }
+[data-theme='adminlte'] .textarea { height: auto; }
+[data-theme='adminlte'] .input:focus,
+[data-theme='adminlte'] .select:focus,
+[data-theme='adminlte'] .textarea:focus { border-color: #80bdff; box-shadow: none; }
+[data-theme='adminlte'] .field > span { font-weight: 700; color: var(--ink); font-size: 14.5px; }
+
+[data-theme='adminlte'] .segmented { padding: 0; gap: 0; border-color: #ddd; border-radius: 4px; overflow: hidden; background: #f8f9fa; }
+[data-theme='adminlte'] .segmented button { height: 36px; border-radius: 0; color: #444; font-size: 14.5px; border-inline-start: 1px solid #ddd; }
+[data-theme='adminlte'] .segmented button:first-child { border-inline-start: 0; }
+[data-theme='adminlte'] .segmented button:hover { background: #e9ecef; }
+[data-theme='adminlte'] .segmented button[aria-pressed='true'] { background: var(--primary); color: #fff; }
+
+[data-theme='adminlte'] .switch input:checked { background: var(--primary); }
+
+/* ---------- cards & tables ---------- */
+[data-theme='adminlte'] .panel { border: 0; border-top: 3px solid var(--primary); border-radius: 4px; box-shadow: var(--card-shadow); }
+[data-theme='adminlte'] .panel-head { padding: 12px 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.125); margin-bottom: 14px; }
+[data-theme='adminlte'] .panel-head h2 { font-size: 18px; font-weight: 400; }
+[data-theme='adminlte'] .panel:has(> .toolbar),
+[data-theme='adminlte'] .panel:has(> .table-wrap:first-child) { border-top-color: var(--primary); }
+[data-theme='adminlte'] .toolbar { border-color: rgba(0, 0, 0, 0.125); }
+[data-theme='adminlte'] .cat-card { border-top-color: var(--info); }
+
+[data-theme='adminlte'] table.data { font-size: 15px; }
+[data-theme='adminlte'] table.data th { background: #fff; color: var(--ink); font-weight: 700; font-size: 15px; border-bottom: 2px solid #dee2e6; }
+[data-theme='adminlte'] table.data td { border-color: #dee2e6; }
+[data-theme='adminlte'] table.data tbody tr:nth-child(odd) td { background: rgba(0, 0, 0, 0.03); }
+[data-theme='adminlte'] table.data tbody tr.clickable:hover td { background: rgba(0, 0, 0, 0.075); }
+[data-theme='adminlte'] .matrix tr.group td { background: #e9ecef !important; color: var(--ink); font-weight: 700; }
+[data-theme='adminlte'] .matrix input[type='checkbox'] { accent-color: var(--primary); }
+
+/* Small boxes: AdminLTE's coloured KPI tiles */
+[data-theme='adminlte'] .ledger { background: transparent; border: 0; gap: 18px; }
+[data-theme='adminlte'] .ledger-cell {
+  position: relative; overflow: hidden; color: #fff;
+  border: 0 !important; border-radius: 4px; box-shadow: var(--card-shadow);
+  padding: 14px 16px 44px;
+}
+[data-theme='adminlte'] .ledger-cell:nth-child(1) { background: var(--info); }
+[data-theme='adminlte'] .ledger-cell:nth-child(2) { background: var(--success); }
+[data-theme='adminlte'] .ledger-cell:nth-child(3) { background: var(--warning); color: #1f2d3d; }
+[data-theme='adminlte'] .ledger-cell:nth-child(4) { background: var(--danger); }
+[data-theme='adminlte'] .ledger-cell .value { order: -1; font-family: var(--font-display); font-size: 34px; font-weight: 700; margin: 0 0 2px; position: relative; }
+[data-theme='adminlte'] .ledger-cell .value .muted { color: inherit; opacity: 0.8; }
+[data-theme='adminlte'] .ledger-cell .label { color: inherit; font-size: 16px; position: relative; }
+[data-theme='adminlte'] .ledger-cell { display: flex; flex-direction: column; }
+[data-theme='adminlte'] .ledger-cell .foot {
+  position: absolute; inset-inline: 0; bottom: 0; margin: 0;
+  background: rgba(0, 0, 0, 0.1); color: rgba(255, 255, 255, 0.85);
+  text-align: center; font-size: 13.5px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+[data-theme='adminlte'] .ledger-cell:nth-child(3) .foot { color: rgba(31, 45, 61, 0.85); }
+[data-theme='adminlte'] .ledger-cell .foot .up,
+[data-theme='adminlte'] .ledger-cell .foot .down { color: inherit; font-weight: 700; }
+[data-theme='adminlte'] .ledger-cell a { color: inherit; }
+[data-theme='adminlte'] .ledger-cell.alert::after { display: none; }
+[data-theme='adminlte'] .ledger-icon {
+  display: block; position: absolute; top: 12px; inset-inline-end: 12px;
+  width: 64px; height: 64px; color: rgba(0, 0, 0, 0.15); stroke-width: 1.6;
+}
+
+/* ---------- inventory bits ---------- */
+[data-theme='adminlte'] .shelf-label {
+  background: #e9ecef; color: var(--ink); border-radius: 4px; padding: 2px 8px; min-width: 0;
+  box-shadow: none; display: inline-flex; flex-direction: row;
+}
+[data-theme='adminlte'] .shelf-label::before,
+[data-theme='adminlte'] .shelf-label svg { display: none; }
+[data-theme='adminlte'] .shelf-label code { font-size: 12.5px; font-weight: 700; }
+[data-theme='adminlte'] .shelf-label.lg { padding: 8px 14px; min-width: 0; background: var(--ink-2); color: #fff; }
+[data-theme='adminlte'] .shelf-label.lg code { font-size: 18px; }
+[data-theme='adminlte'] .shelf-label.muted-label { opacity: 0.6; }
+[data-theme='adminlte'] .bin { border: 0; background: #6c757d; color: #fff; border-radius: 4px; font-weight: 700; font-size: 11.5px; padding: 1px 6px; }
+
+[data-theme='adminlte'] .gauge-bar { height: 7px; background: #e9ecef; border-radius: 4px; }
+[data-theme='adminlte'] .gauge-fill { background: var(--primary); border-radius: 4px; }
+[data-theme='adminlte'] .gauge.low .gauge-fill { background: var(--warning); }
+[data-theme='adminlte'] .gauge.out .gauge-bar { background: #f5c6cb; outline: 0; }
+[data-theme='adminlte'] .gauge-tick { background: var(--danger); }
+
+[data-theme='adminlte'] .badge { border-radius: 4px; font-size: 12px; font-weight: 700; line-height: 20px; padding: 0 7px; color: #fff; }
+[data-theme='adminlte'] .badge-in { background: var(--success); }
+[data-theme='adminlte'] .badge-out { background: var(--danger); }
+[data-theme='adminlte'] .badge-adj { background: var(--info); }
+[data-theme='adminlte'] .badge-low { background: var(--warning); color: #1f2d3d; }
+[data-theme='adminlte'] .badge-none { background: var(--danger); color: #fff; }
+[data-theme='adminlte'] .badge-ok { background: var(--success); }
+[data-theme='adminlte'] .badge-off { background: #6c757d; }
+
+[data-theme='adminlte'] .feed-icon { color: #fff !important; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+[data-theme='adminlte'] .feed-icon.in { background: var(--success); }
+[data-theme='adminlte'] .feed-icon.out { background: var(--danger); }
+[data-theme='adminlte'] .feed-icon.adj { background: var(--info); }
+[data-theme='adminlte'] .cat-bar-track { height: 7px; background: #e9ecef; border-radius: 4px; }
+[data-theme='adminlte'] .cat-bar-fill { background: var(--primary); border-radius: 4px; }
+[data-theme='adminlte'] .kv strong { font-weight: 700; }
+
+/* ---------- overlays ---------- */
+[data-theme='adminlte'] .overlay { background: rgba(0, 0, 0, 0.5); }
+[data-theme='adminlte'] .modal { border-radius: 5px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); }
+[data-theme='adminlte'] .overlay-head { border-bottom-color: #e9ecef; padding: 14px 18px; }
+[data-theme='adminlte'] .overlay-head h2 { font-size: 20px; font-weight: 400; }
+[data-theme='adminlte'] .overlay-foot { background: #fff; border-top-color: #e9ecef; }
+[data-theme='adminlte'] .form-error { background: var(--danger); color: #fff; border-radius: 4px; }
+[data-theme='adminlte'] .form-note { background: #d1ecf1; color: #0c5460; border-radius: 4px; }
+[data-theme='adminlte'] .toast { background: var(--success); color: #fff; border-radius: 4px; box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1); }
+[data-theme='adminlte'] .toast svg { color: #fff; }
+[data-theme='adminlte'] .toast.error { background: var(--danger); }
+[data-theme='adminlte'] .toast.error svg { color: #fff; }
+
+/* ---------- login: centred login-box ---------- */
+[data-theme='adminlte'] .login { grid-template-columns: 1fr; background: #e9ecef; place-items: center; }
+[data-theme='adminlte'] .login-art { display: none; }
+[data-theme='adminlte'] .login-form {
+  width: min(400px, calc(100% - 24px)); margin: 60px 0; padding: 26px 22px;
+  background: #fff; border-top: 3px solid var(--primary); border-radius: 4px; box-shadow: var(--card-shadow);
+  gap: 16px;
+}
+[data-theme='adminlte'] .login-form h1 { font-size: 22px; text-align: center; }
+[data-theme='adminlte'] .login-form > div:nth-child(2) { text-align: center; }
+[data-theme='adminlte'] .login-prefs { position: static; justify-content: space-between; }
+[data-theme='adminlte'] .demo-accounts { border-radius: 4px; }
