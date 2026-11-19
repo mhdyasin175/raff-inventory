@@ -68,7 +68,7 @@ test.describe('barcodes', () => {
     await expect(page.getByText('3 labels on one page')).toBeVisible();
 
     // A thermal roll prints one label per page.
-    await page.getByRole('button', { name: 'Thermal roll 50×30 mm' }).click();
+    await page.getByRole('button', { name: 'Thermal roll' }).click();
     await expect(preview.locator('.sheet')).toHaveCount(3);
   });
 

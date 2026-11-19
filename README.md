@@ -185,8 +185,9 @@ npm run dev:demo         # or: npm run build:demo → static files in dist/
 | | |
 |---|---|
 | ![Products](docs/screenshots/products.png) | ![Movements](docs/screenshots/movements.png) |
+| ![Barcode labels ready to print](docs/screenshots/labels.png) | ![Scanning a barcode with the camera](docs/screenshots/scanner.png) |
+| ![Transfer between warehouses, product picked by scanning](docs/screenshots/movement-form.png) | ![Warehouses](docs/screenshots/warehouses.png) |
 | ![Reports](docs/screenshots/reports.png) | ![Roles](docs/screenshots/roles.png) |
-| ![Record movement](docs/screenshots/movement-form.png) | |
 
 ---
 

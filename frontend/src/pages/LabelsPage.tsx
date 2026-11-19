@@ -14,9 +14,9 @@ import { t, type TKey } from '../i18n';
 
 /** Physical layouts, in millimetres. The sheet matches common 3×8 A4 label stock (70 × 37 mm). */
 const FORMATS = {
-  sheet: { label: 'lbl.format.sheet', cols: 3, rows: 8, w: 70, h: 37.125, page: 'A4', pageW: 210, pageH: 297 },
-  roll: { label: 'lbl.format.roll', cols: 1, rows: 1, w: 50, h: 30, page: '50mm 30mm', pageW: 50, pageH: 30 },
-} as const satisfies Record<string, { label: TKey; cols: number; rows: number; w: number; h: number; page: string; pageW: number; pageH: number }>;
+  sheet: { label: 'lbl.format.sheet', hint: 'lbl.format.sheetHint', cols: 3, rows: 8, w: 70, h: 37.125, page: 'A4', pageW: 210, pageH: 297 },
+  roll: { label: 'lbl.format.roll', hint: 'lbl.format.rollHint', cols: 1, rows: 1, w: 50, h: 30, page: '50mm 30mm', pageW: 50, pageH: 30 },
+} as const satisfies Record<string, { label: TKey; hint: TKey; cols: number; rows: number; w: number; h: number; page: string; pageW: number; pageH: number }>;
 type FormatKey = keyof typeof FORMATS;
 
 interface Line { product: Product; copies: number }
@@ -197,10 +197,13 @@ export default function LabelsPage() {
           <section className="panel">
             <div className="panel-head"><h2>{t('lbl.layout')}</h2></div>
             <div className="labels-pick">
-              <div className="segmented" role="group" aria-label={t('lbl.layout')}>
-                {(Object.keys(FORMATS) as FormatKey[]).map((k) => (
-                  <button key={k} type="button" aria-pressed={format === k} onClick={() => setFormat(k)}>{t(FORMATS[k].label)}</button>
-                ))}
+              <div className="field">
+                <div className="segmented" role="group" aria-label={t('lbl.layout')}>
+                  {(Object.keys(FORMATS) as FormatKey[]).map((k) => (
+                    <button key={k} type="button" aria-pressed={format === k} onClick={() => setFormat(k)}>{t(FORMATS[k].label)}</button>
+                  ))}
+                </div>
+                <small>{t(f.hint)}</small>
               </div>
               {format === 'sheet' && (
                 <label className="field">
