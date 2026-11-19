@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Raff.Api.Auth;
 using Raff.Api.Domain;
+using Raff.Api.Infrastructure;
 
 namespace Raff.Api.Data;
 
@@ -147,12 +148,16 @@ public static class DbSeeder
         var products = new List<(Product P, SeedProduct S)>();
         char[] aisles = ['A', 'B', 'C', 'D', 'E'];
 
+        var itemNo = 0;
         foreach (var s in items)
         {
             counters[s.Prefix] = counters.GetValueOrDefault(s.Prefix) + 1;
+            itemNo++;
             var p = new Product
             {
                 Sku = $"{s.Prefix}-{counters[s.Prefix] * 7 + 100:0000}",
+                // Most items carry the supplier's EAN-13 (621 = Syria); every fourth one only has Raff's own SKU label.
+                Barcode = itemNo % 4 == 0 ? null : Barcodes.WithCheckDigit($"6214503{itemNo * 37:00000}"),
                 Name = s.Name,
                 Category = categories[s.Category],
                 Unit = s.Unit,

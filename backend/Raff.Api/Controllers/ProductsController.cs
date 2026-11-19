@@ -34,7 +34,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
             x.P.CostPrice, x.P.SalePrice, x.Qty, x.P.ReorderLevel, x.P.IsActive,
             x.Qty * x.P.CostPrice,
             x.Qty == 0 ? StockStatus.Out : x.Qty <= x.P.ReorderLevel ? StockStatus.Low : StockStatus.Ok,
-            x.P.Movements.Max(m => (DateTime?)m.OccurredAt)));
+            x.P.Movements.Max(m => (DateTime?)m.OccurredAt),
+            x.P.Barcode));
 
     /// <param name="warehouseId">Show quantities for one warehouse; omit for the total across warehouses.</param>
     /// <param name="status">ok | low | out | attention</param>
@@ -55,7 +56,8 @@ public class ProductsController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            products = products.Where(p => p.Name.Contains(s) || p.Sku.Contains(s) || (p.Location != null && p.Location.Contains(s)));
+            products = products.Where(p => p.Name.Contains(s) || p.Sku.Contains(s) || p.Barcode == s
+                                           || (p.Location != null && p.Location.Contains(s)));
         }
 
         var q = WithQuantity(products, wid);
@@ -91,6 +93,25 @@ public class ProductsController(AppDbContext db) : ControllerBase
         var wid = User.ResolveWarehouse(warehouseId);
         var rows = await Project(WithQuantity(db.Products.AsNoTracking().Where(p => p.Id == id), wid)).ToListAsync();
         return rows.FirstOrDefault() ?? throw AppException.NotFound("المنتج", "Product");
+    }
+
+    /// <summary>
+    /// Finds the product a scanned code belongs to: its manufacturer barcode or its SKU
+    /// (the code printed on Raff's own labels). Used by camera and USB scanners.
+    /// </summary>
+    [HttpGet("lookup")]
+    [Authorize(Policy = Permissions.ProductsView)]
+    public async Task<ProductDto> Lookup(string? code, int? warehouseId)
+    {
+        var c = code?.Trim() ?? "";
+        if (c.Length == 0) throw new AppException(Msg.T("أدخل رمزاً أو امسح باركود", "Enter or scan a code"));
+        var sku = c.ToUpperInvariant();
+        var wid = User.ResolveWarehouse(warehouseId);
+
+        var rows = await Project(WithQuantity(
+            db.Products.AsNoTracking().Where(p => p.Barcode == c || p.Sku == sku), wid)).ToListAsync();
+        return rows.OrderByDescending(r => r.Barcode == c).FirstOrDefault()
+               ?? throw new AppException(Msg.T($"لا يوجد منتج بالرمز {c}", $"No product has the code {c}"), StatusCodes.Status404NotFound);
     }
 
     /// <summary>On-hand quantity of one product in every active warehouse (zero where it has none).</summary>
@@ -195,11 +216,21 @@ public class ProductsController(AppDbContext db) : ControllerBase
             throw AppException.Conflict(Msg.T($"الرمز {sku} مستخدم لمنتج آخر", $"Code {sku} is used by another product"));
         if (!await db.Categories.AnyAsync(c => c.Id == input.CategoryId))
             throw new AppException(Msg.T("التصنيف المختار غير موجود", "The selected category doesn't exist"));
+
+        var barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode.Trim();
+        if (barcode is null) return;
+        if (Barcodes.IsGtin(barcode) && !Barcodes.HasValidCheckDigit(barcode))
+            throw new AppException(Msg.T(
+                $"الباركود {barcode} غير صحيح: الرقم الأخير (رقم التحقق) لا يطابق. تأكد من نسخه كاملاً",
+                $"Barcode {barcode} isn't valid: its last (check) digit doesn't match. Check it was copied in full"));
+        if (await db.Products.AnyAsync(p => p.Barcode == barcode && p.Id != id))
+            throw AppException.Conflict(Msg.T($"الباركود {barcode} مستخدم لمنتج آخر", $"Barcode {barcode} is used by another product"));
     }
 
     private static void Apply(Product p, ProductInput input)
     {
         p.Sku = input.Sku.Trim().ToUpperInvariant();
+        p.Barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode.Trim();
         p.Name = input.Name.Trim();
         p.CategoryId = input.CategoryId;
         p.Unit = input.Unit.Trim();

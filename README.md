@@ -19,14 +19,16 @@ The interface is bilingual: **Arabic (RTL) and English (LTR)**, switchable from 
 | **Dashboard** | Stock value (cost and sale), 30-day sales against the previous 30 days, units moved, a reorder alert, a diverging daily in/out chart, products below reorder level, latest movements and stock value per category. |
 | **Products** | Search, filter by category or stock status, sortable columns, pagination, and add/edit/archive. Each product has a SKU suggester, shelf location, cost and sale prices with margin, and a reorder level. |
 | **Warehouses** | A main warehouse and branches, each with its own stock. Transfers move stock between them in one step (both legs saved together). Every page can show one warehouse or all of them, and a user can be limited to a single warehouse (e.g. a branch storekeeper). |
+| **Barcodes** | Scan with the phone or laptop camera (EAN-13/8, UPC, Code 128/39, QR), or with any USB/Bluetooth scanner, to pick a product in the movement form or jump to it from the product list. Products keep the manufacturer's barcode (check digit verified); items without one use their SKU as a Code 128. A label page prints real-size barcode labels on A4 sheets (3 × 8, with "start at" for part-used sheets) or a 50 × 30 mm thermal roll, with optional price and shelf location. |
 | **Stock movements** | Stock-in, stock-out and stock-count adjustment, plus a full audit log with the balance after each movement. Filter by type, date range or free text, and export to CSV (UTF-8 with BOM so Excel shows Arabic correctly). |
 | **Reports** | Any date range: revenue, gross profit and margin, purchases, daily value chart, top-selling products by value or quantity, and stock value per category. |
 | **Users & roles** | Create and deactivate users, reset passwords, and a role × permission matrix with 11 permissions that you edit live. |
 
 ### Tests
 
-- **API integration tests** (`backend/Raff.Api.Tests`, xUnit): the real API runs in memory against a **real SQL Server started in Docker** by Testcontainers. 36 test cases cover the stock rules (balances, no negative stock, stock counts need a reason, archive instead of delete), warehouses and transfers (both legs, per-warehouse availability, scoped users, transfers not counted as sales), permissions per role, protections such as "the last admin can't be deactivated", report numbers (revenue, gross profit, category value, sorting), CSV export and message language.
-- **End-to-end tests** (`frontend/e2e`, Playwright): a real browser signs in with different roles, records a stock-in and a transfer and checks the balances, checks that invalid movements are blocked, checks what each role and a branch-limited user can see, adds a warehouse, and switches language and look. They also run at phone size.
+- **API integration tests** (`backend/Raff.Api.Tests`, xUnit): the real API runs in memory against a **real SQL Server started in Docker** by Testcontainers. 45 test cases cover the stock rules (balances, no negative stock, stock counts need a reason, archive instead of delete), warehouses and transfers (both legs, per-warehouse availability, scoped users, transfers not counted as sales), permissions per role, protections such as "the last admin can't be deactivated", report numbers (revenue, gross profit, category value, sorting), CSV export, message language, and barcodes (GS1 check digits, lookup by barcode or SKU, duplicates refused).
+- **End-to-end tests** (`frontend/e2e`, Playwright): a real browser signs in with different roles, records a stock-in and a transfer and checks the balances, checks that invalid movements are blocked, checks what each role and a branch-limited user can see, adds a warehouse, prints barcode labels, and switches language and look. They also run at phone size.
+- **Camera scanning, tested for real.** Before the suite starts, `e2e/support/barcode-video.ts` draws an EAN-13 into a Y4M video, and Chrome plays it as its camera (`--use-file-for-fake-video-capture`). The test opens the scanner and waits for the product to be picked, so the whole chain runs: camera stream → ZXing WebAssembly → lookup API → form.
 - Both suites run in GitHub Actions on every push (see the CI badge above).
 
 ```bash
@@ -42,6 +44,7 @@ cd frontend && npx playwright install chromium && npm run test:e2e
 - **Concurrency safety.** `StockLevel.RowVersion` (SQL Server `rowversion`) makes two simultaneous movements on the same stock fail cleanly with HTTP 409 instead of corrupting the balance.
 - **Business rules on the server.** You can't take out more than is on hand, a stock-count adjustment needs a reason, a product with history is archived instead of deleted, the last active admin can't be deactivated, and the system admin role always keeps every permission.
 - **Time zones.** All timestamps are stored in UTC and the API always returns them with `Z`. Reports take the client's UTC offset, so "today" and the daily buckets match the user's local day.
+- **Barcode scanning without a native app.** The scanner uses the browser's `BarcodeDetector` where it exists and otherwise a WebAssembly build of ZXing, served from the app itself and loaded only when the camera is first opened. USB scanners need no setup: they type the code and press Enter, and the same lookup endpoint (`GET /api/products/lookup?code=`) resolves barcodes and SKUs.
 - **Health check.** `/api/health` checks the database connection; Docker and CI use it to know when the API is ready.
 - **Aggregations in SQL.** Dashboard and report numbers are computed with EF Core `GroupBy`/`Sum` queries that run as SQL, not by loading rows into memory.
 - **Consistent errors.** A global `IExceptionHandler` turns business errors into RFC 7807 problem responses with user-facing Arabic messages. The frontend shows them in context, either under a field or at the top of the form.
@@ -68,6 +71,7 @@ Raff/
 │   ├── Controllers/            # Auth, Products, Categories, Movements, Reports, Users, Roles
 │   └── Infrastructure/         # Global exception handler, UTC JSON converter
 └── frontend/
+    ├── e2e/                    # Playwright tests; support/ draws the barcode video the fake camera plays
     └── src/
         ├── api/                # fetch client, types, demo/ (in-browser API for static demo)
         ├── auth/               # AuthContext + permission keys
@@ -162,6 +166,7 @@ npm run dev:demo         # or: npm run build:demo → static files in dist/
 | GET | `/api/warehouses`, `/api/warehouses/options` | signed in (limited users see their own) |
 | POST/PUT/DELETE | `/api/warehouses/{id}` | `warehouses.manage` |
 | GET | `/api/products/{id}/stock` | `products.view` |
+| GET | `/api/products/lookup?code=` (scanned barcode or SKU) | `products.view` |
 | GET/POST/PUT | `/api/users` | `users.manage` |
 | GET/POST/PUT/DELETE | `/api/roles`, `/api/roles/permissions` | `roles.manage` |
 

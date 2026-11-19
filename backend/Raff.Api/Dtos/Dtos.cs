@@ -28,7 +28,7 @@ public enum StockStatus { Ok, Low, Out }
 public record ProductDto(
     int Id, string Sku, string Name, int CategoryId, string CategoryName, string Unit, string? Location,
     decimal CostPrice, decimal SalePrice, int Quantity, int ReorderLevel, bool IsActive,
-    decimal StockValue, StockStatus Status, DateTime? LastMovementAt);
+    decimal StockValue, StockStatus Status, DateTime? LastMovementAt, string? Barcode);
 
 public record ProductInput(
     [Required(ErrorMessage = "رمز المنتج مطلوب"), MaxLength(40)] string Sku,
@@ -41,7 +41,8 @@ public record ProductInput(
     [Range(0, 1_000_000, ErrorMessage = "حد إعادة الطلب غير صالح")] int ReorderLevel,
     bool IsActive = true,
     [Range(0, 1_000_000, ErrorMessage = "الكمية الافتتاحية غير صالحة")] int OpeningQuantity = 0,
-    int? OpeningWarehouseId = null);
+    int? OpeningWarehouseId = null,
+    [MaxLength(32), RegularExpression(@"^[\x21-\x7E]{4,32}$", ErrorMessage = "الباركود: 4 إلى 32 حرفاً أو رقماً إنجليزياً بلا مسافات")] string? Barcode = null);
 
 /// <summary>A product's on-hand quantity in one warehouse.</summary>
 public record ProductStockDto(int WarehouseId, string WarehouseCode, string WarehouseName, int Quantity);

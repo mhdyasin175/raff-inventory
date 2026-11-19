@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownUp, Archive, Pencil, Plus, Search } from 'lucide-react';
+import { ArrowDownUp, Archive, Barcode, Camera, Pencil, Plus, Search, Tag } from 'lucide-react';
 import { api } from '../api/client';
 import type { Category, Movement, Paged, Product, ProductStock } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
@@ -10,6 +10,7 @@ import { PageHead } from '../components/Layout';
 import ProductForm from '../components/ProductForm';
 import MovementForm, { canRecordMovements } from '../components/MovementForm';
 import { Bin, MovementBadge, QtyChange, ShelfLabel, StatusBadge, StockGauge, WarehouseChip } from '../components/inventory';
+import { CameraScanner } from '../components/Scanner';
 import { ConfirmDialog, Drawer, EmptyState, ErrorState, Pagination, SkeletonRows, useToast } from '../components/ui';
 import { fmt } from '../lib/format';
 import { t, type TKey } from '../i18n';
@@ -19,6 +20,9 @@ function useDebounced<T>(value: T, ms = 300) {
   useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
   return v;
 }
+
+/** A barcode or SKU (ASCII, no spaces, has a digit), as opposed to words typed to search by name. */
+const looksLikeCode = (s: string) => /^[\x21-\x7E]{4,32}$/.test(s) && /\d/.test(s);
 
 const STATUS_FILTERS: { key: string; label: TKey }[] = [
   { key: '', label: 'common.all' },
@@ -68,6 +72,7 @@ function ProductDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
               <button className="btn btn-danger" onClick={() => setConfirm(true)}><Archive size={16} /> {t('prod.archive')}</button>
             )}
             <span className="spacer" />
+            <Link className="btn" to={`/labels?ids=${p.id}`}><Tag size={16} /> {t('lbl.printOne')}</Link>
             {can(P.productsManage) && <button className="btn" onClick={() => onEdit(p)}><Pencil size={16} /> {t('prod.edit')}</button>}
             {canRecordMovements(can) && p.isActive && (
               <button className="btn btn-primary" onClick={() => setRecording(true)}><ArrowDownUp size={16} /> {t('dash.record')}</button>
@@ -82,6 +87,10 @@ function ProductDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                 <span>{p.categoryName}</span>
                 <span className="muted" style={{ fontSize: 13.5 }}>{t('prod.locationLabel')} <Bin location={p.location} /></span>
+                <span className="muted" style={{ fontSize: 13.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Barcode size={15} aria-hidden="true" />
+                  {p.barcode ? <span className="num ltr" dir="ltr">{p.barcode}</span> : t('prod.noBarcode')}
+                </span>
                 <StatusBadge status={p.status} active={p.isActive} />
               </div>
             </div>
@@ -169,6 +178,20 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const status = params.get('status') ?? '';
   const wh = useWarehouse();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [camera, setCamera] = useState(false);
+
+  /** Scanning (camera, or a USB scanner typing into the search box + Enter) opens the product directly. */
+  async function openByCode(code: string) {
+    try {
+      const found = await api.get<Product>('/api/products/lookup', { code, warehouseId: wh.param });
+      setSearch('');
+      setOpenId(found.id);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('common.actionFailed'), 'error');
+    }
+  }
 
   useEffect(() => setPage(1), [q, categoryId, status, sort, archived, wh.param]);
 
@@ -194,9 +217,14 @@ export default function ProductsPage() {
       <PageHead
         title={t('prod.title')}
         subtitle={list.data ? `${t('prod.count', { n: fmt.int(list.data.total) })}${t('common.sep')}${wh.selected?.name ?? t('wh.all')}` : ' '}
-        actions={can(P.productsManage) && (
-          <button className="btn btn-primary" onClick={() => setEditing('new')}><Plus size={18} /> {t('prod.new')}</button>
-        )}
+        actions={
+          <>
+            <button className="btn" onClick={() => navigate('/labels')}><Tag size={17} /> {t('lbl.print')}</button>
+            {can(P.productsManage) && (
+              <button className="btn btn-primary" onClick={() => setEditing('new')}><Plus size={18} /> {t('prod.new')}</button>
+            )}
+          </>
+        }
       />
 
       <section className="panel">
@@ -204,8 +232,13 @@ export default function ProductsPage() {
           <div className="search">
             <Search size={16} />
             <input className="input" type="search" placeholder={t('prod.search')} value={search}
-              onChange={(e) => setSearch(e.target.value)} aria-label={t('prod.searchAria')} />
+              onChange={(e) => setSearch(e.target.value)} aria-label={t('prod.searchAria')}
+              onKeyDown={(e) => {
+                // Scanners "type" the code then press Enter: jump straight to an exact barcode / SKU match.
+                if (e.key === 'Enter' && looksLikeCode(search.trim())) openByCode(search.trim());
+              }} />
           </div>
+          <button className="btn" onClick={() => setCamera(true)}><Camera size={16} /> {t('scan.button')}</button>
           <select className="select" value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))} aria-label={t('prod.category')}>
             <option value={0}>{t('prod.allCategories')}</option>
             {categories.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -276,6 +309,9 @@ export default function ProductsPage() {
 
       {openId !== null && !editing && (
         <ProductDetail id={openId} onClose={() => setOpenId(null)} onEdit={(p) => setEditing(p)} />
+      )}
+      {camera && (
+        <CameraScanner onClose={() => setCamera(false)} onDetected={(code) => { setCamera(false); openByCode(code); }} />
       )}
       {editing && <ProductForm product={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
     </>

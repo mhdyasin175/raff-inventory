@@ -22,7 +22,8 @@ public static class TestData
     }
 
     public static async Task<ProductDto> CreateProduct(
-        HttpClient admin, int categoryId, int openingQuantity = 0, decimal cost = 2m, decimal sale = 3m, int reorderLevel = 5)
+        HttpClient admin, int categoryId, int openingQuantity = 0, decimal cost = 2m, decimal sale = 3m, int reorderLevel = 5,
+        string? barcode = null)
     {
         var input = new ProductInput(
             Sku: Unique("T-").ToUpperInvariant(),
@@ -34,7 +35,8 @@ public static class TestData
             SalePrice: sale,
             ReorderLevel: reorderLevel,
             IsActive: true,
-            OpeningQuantity: openingQuantity);
+            OpeningQuantity: openingQuantity,
+            Barcode: barcode);
 
         var res = await admin.PostAsJsonAsync("/api/products", input, ApiFixture.Json);
         res.EnsureSuccessStatusCode();
@@ -61,6 +63,13 @@ public static class TestData
         var res = await admin.PostAsJsonAsync("/api/warehouses", new WarehouseInput(code, Unique("Warehouse "), null), ApiFixture.Json);
         res.EnsureSuccessStatusCode();
         return (await res.Content.ReadFromJsonAsync<WarehouseDto>(ApiFixture.Json))!;
+    }
+
+    /// <summary>A valid, unique EAN-13 (GS1 prefix 200–299 is reserved for in-store use, so it never clashes with real products).</summary>
+    public static string UniqueEan13()
+    {
+        var body = $"2{Random.Shared.NextInt64(0, 100_000_000_000):00000000000}";
+        return Raff.Api.Infrastructure.Barcodes.WithCheckDigit(body);
     }
 
     public static async Task<string?> ErrorTitle(HttpResponseMessage res)

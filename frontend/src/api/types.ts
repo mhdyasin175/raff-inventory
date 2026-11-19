@@ -35,6 +35,8 @@ export interface Category {
 export interface Product {
   id: number;
   sku: string;
+  /** Manufacturer barcode (EAN-13, UPC-A…), if the product has one. */
+  barcode: string | null;
   name: string;
   categoryId: number;
   categoryName: string;
@@ -62,6 +64,7 @@ export interface ProductInput {
   isActive: boolean;
   openingQuantity: number;
   openingWarehouseId?: number | null;
+  barcode?: string | null;
 }
 
 export interface ProductStock {

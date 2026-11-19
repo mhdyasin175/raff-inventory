@@ -31,7 +31,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Location).HasMaxLength(30);
             e.Property(x => x.CostPrice).HasPrecision(18, 2);
             e.Property(x => x.SalePrice).HasPrecision(18, 2);
+            e.Property(x => x.Barcode).HasMaxLength(32);
             e.HasIndex(x => x.Sku).IsUnique();
+            e.HasIndex(x => x.Barcode).IsUnique().HasFilter("[Barcode] IS NOT NULL");
             e.HasIndex(x => x.Name);
             e.HasOne(x => x.Category).WithMany(c => c.Products)
                 .HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);

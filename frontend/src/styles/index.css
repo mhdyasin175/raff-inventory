@@ -660,3 +660,123 @@ table.data .end { text-align: end; }
 .wh-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13.5px; color: var(--steel); margin-top: 4px; }
 .wh-card .figures strong { color: var(--ink); font-weight: 600; }
 .wh-card.inactive { opacity: 0.6; }
+
+/* ==========================================================================
+   Barcode: scanning and labels
+   ========================================================================== */
+.scan-input { position: relative; display: flex; gap: 6px; }
+.scan-input > svg { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: var(--steel); pointer-events: none; }
+.scan-input .input { flex: 1; padding-inline-start: 34px; }
+/* Codes read left-to-right even in the Arabic UI; the Arabic placeholder keeps the normal font. */
+.code-input { unicode-bidi: plaintext; }
+.code-input:not(:placeholder-shown) { font-family: var(--font-code); }
+.scan-input .btn-icon { width: 40px; height: 40px; flex: none; }
+
+/* Camera viewfinder */
+.scanner {
+  position: relative; aspect-ratio: 4 / 3; border-radius: var(--r-md); overflow: hidden;
+  background: #101614; color: #d9dfdb;
+}
+.scanner video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scanner:not(.scanning) video { visibility: hidden; }
+.scanner-msg {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; text-align: center; font-size: 14px; line-height: 1.6;
+}
+/* A shelf-label shaped window: the yellow corners are the only colour on the screen. */
+.scanner-frame { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.scanner-frame span {
+  width: 72%; height: 38%; border-radius: 6px;
+  box-shadow: 0 0 0 999px rgba(10, 14, 12, 0.45);
+  background:
+    linear-gradient(var(--signal), var(--signal)) top left / 22px 3px,
+    linear-gradient(var(--signal), var(--signal)) top left / 3px 22px,
+    linear-gradient(var(--signal), var(--signal)) top right / 22px 3px,
+    linear-gradient(var(--signal), var(--signal)) top right / 3px 22px,
+    linear-gradient(var(--signal), var(--signal)) bottom left / 22px 3px,
+    linear-gradient(var(--signal), var(--signal)) bottom left / 3px 22px,
+    linear-gradient(var(--signal), var(--signal)) bottom right / 22px 3px,
+    linear-gradient(var(--signal), var(--signal)) bottom right / 3px 22px;
+  background-repeat: no-repeat;
+  position: relative;
+}
+.scanner-frame span::after {
+  content: ''; position: absolute; inset-inline: 8%; top: 50%; height: 2px; background: rgba(245, 196, 0, 0.85);
+  box-shadow: 0 0 10px rgba(245, 196, 0, 0.8);
+  animation: scanline 1.8s ease-in-out infinite alternate;
+}
+@keyframes scanline { from { transform: translateY(-34px); } to { transform: translateY(34px); } }
+@media (prefers-reduced-motion: reduce) { .scanner-frame span::after { animation: none; } }
+
+/* Labels page */
+.labels-layout { display: grid; grid-template-columns: minmax(300px, 360px) 1fr; gap: 20px; align-items: start; }
+.labels-controls { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.labels-pick { display: flex; flex-direction: column; gap: 12px; padding: 0 20px 18px; }
+.pick-results, .pick-lines { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-radius: var(--r-md); }
+.pick-results li, .pick-lines li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; border-top: 1px solid #eceee9; font-size: 14px;
+}
+.pick-results li:first-child, .pick-lines li:first-child { border-top: 0; }
+.pick-results li > div, .pick-lines li > div:first-child { flex: 1; }
+.pick-results .cell-sub { font-family: var(--font-code); text-align: start; }
+.pick-head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); background: var(--surface); flex: none; }
+.stepper button { width: 28px; height: 30px; border: 0; background: none; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; }
+.stepper button:disabled { color: var(--rule-strong); cursor: default; }
+.stepper button:hover:not(:disabled) { background: var(--surface-2); }
+.stepper input { width: 38px; height: 30px; border: 0; border-inline: 1px solid var(--rule); text-align: center; font: inherit; font-size: 14px; background: none; color: var(--ink); }
+.stepper input:focus { outline: 2px solid var(--signal); outline-offset: -2px; }
+
+.labels-preview { min-width: 0; overflow-x: auto; }
+.label-sheets { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 4px 0 24px; }
+.sheet {
+  display: grid; align-content: start; background: #fff; color: #000; flex: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 8px 28px rgba(24, 32, 29, 0.14);
+}
+.label {
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 1mm;
+  padding: 2.6mm 3.5mm 2.2mm; overflow: hidden;
+  font-family: var(--font-body); color: #000;
+}
+/* On screen only: hairlines show where the sheet will be cut. */
+.sheet .label { outline: 1px dashed #d9ddd6; outline-offset: -1px; }
+.label.empty { background: repeating-linear-gradient(-45deg, transparent 0 6px, #f1f2ef 6px 7px); }
+.label-name {
+  align-self: stretch; font-size: 8.6pt; font-weight: 600; line-height: 1.25; text-align: center;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.label-code { width: 100%; height: 17mm; flex: 1 1 auto; min-height: 0; overflow: visible; }
+.label-foot { align-self: stretch; display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; font-size: 7.4pt; }
+.label-sku { font-family: var(--font-code); letter-spacing: 0.02em; }
+.label-price { font-size: 9.5pt; font-family: var(--font-code); }
+.label.compact { padding: 1.6mm 2.4mm 1.4mm; gap: 0.6mm; }
+.label.compact .label-name { -webkit-line-clamp: 1; font-size: 7.4pt; }
+.label.compact .label-code { height: 15mm; }
+.label.compact .label-foot { font-size: 6.6pt; }
+.label.compact .label-price { font-size: 8pt; }
+
+@media (max-width: 1100px) {
+  .labels-layout { grid-template-columns: 1fr; }
+  .labels-controls { position: static; }
+  .label-sheets { align-items: flex-start; }
+}
+
+/* Printing the labels page: only the sheets go to the printer, at their real size. */
+@media print {
+  body:has(.label-sheets) { background: #fff; }
+  body:has(.label-sheets) .sidebar,
+  body:has(.label-sheets) .mobile-bar,
+  body:has(.label-sheets) .topbar,
+  body:has(.label-sheets) .page-head,
+  body:has(.label-sheets) .demo-ribbon,
+  body:has(.label-sheets) .labels-controls { display: none !important; }
+  body:has(.label-sheets) .shell { display: block; }
+  body:has(.label-sheets) .main { padding: 0; }
+  .labels-layout { display: block; }
+  .labels-preview { overflow: visible; }
+  .label-sheets { display: block; padding: 0; zoom: 1 !important; }
+  .sheet { box-shadow: none; break-after: page; }
+  .sheet:last-child { break-after: auto; }
+  .sheet .label { outline: none; }
+  .label.empty { background: none; }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Info, Scale } from 'lucide-react';
 import { api, ApiError } from '../api/client';
@@ -9,6 +9,7 @@ import { fmt } from '../lib/format';
 import { t, type TKey } from '../i18n';
 import { Field, FormError, Modal, useToast } from './ui';
 import { ShelfLabel, StockGauge } from './inventory';
+import { ScanInput } from './Scanner';
 
 const TYPES: { type: MovementType; perm: string; label: TKey; icon: typeof Scale }[] = [
   { type: 'In', perm: P.movementsIn, label: 'mf.in', icon: ArrowDownLeft },
@@ -60,6 +61,26 @@ export default function MovementForm({ onClose, productId, initialType }: {
   const [occurredAt, setOccurredAt] = useState(nowLocalInput());
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
+  const qtyInput = useRef<HTMLInputElement>(null);
+
+  /** A scanned (or typed) barcode / SKU picks the product, then the cursor jumps to the quantity. */
+  async function pickByCode(code: string) {
+    setLooking(true);
+    setScanError(null);
+    try {
+      const found = await api.get<Product>('/api/products/lookup', { code, warehouseId: warehouseId || undefined });
+      if (!found.isActive) { setScanError(t('scan.archived', { name: found.name })); return; }
+      setPid(found.id);
+      setFieldErrors(({ productId: _, ...rest }) => rest);
+      setTimeout(() => qtyInput.current?.focus());
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : t('common.actionFailed'));
+    } finally {
+      setLooking(false);
+    }
+  }
 
   const products = useQuery({
     // Quantities are those of the chosen (source) warehouse.
@@ -188,6 +209,12 @@ export default function MovementForm({ onClose, productId, initialType }: {
         </Field>
       )}
 
+      <div className="field">
+        <span>{t('scan.fieldLabel')}</span>
+        <ScanInput label={t('scan.fieldLabel')} onCode={pickByCode} busy={looking} />
+        {scanError ? <span className="err" role="alert">{scanError}</span> : <small>{t('scan.fieldHint')}</small>}
+      </div>
+
       <Field label={t('mf.product')} error={fieldErrors.productId}>
         <select className="select" value={pid} onChange={(e) => setPid(Number(e.target.value))}
           aria-invalid={!!fieldErrors.productId} disabled={products.isLoading}>
@@ -217,7 +244,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
             ? t('mf.diff', { d: fmt.signed(qty - product.quantity), unit: product.unit })
             : product?.unit}
         >
-          <input className="input" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/[^\d]/g, ''))}
+          <input ref={qtyInput} className="input" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/[^\d]/g, ''))}
             aria-invalid={!!fieldErrors.quantity} />
         </Field>
         {type !== 'Adjustment' && !isTransfer && (

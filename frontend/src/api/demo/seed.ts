@@ -3,10 +3,11 @@
  * (no server) looks like a real installation.
  */
 import type { MovementType } from '../types';
+import { withCheckDigit } from '../../lib/barcode';
 
 export interface DbCategory { id: number; name: string; description: string | null }
 export interface DbProduct {
-  id: number; sku: string; name: string; categoryId: number; unit: string; location: string | null;
+  id: number; sku: string; barcode: string | null; name: string; categoryId: number; unit: string; location: string | null;
   costPrice: number; salePrice: number; reorderLevel: number; isActive: boolean; createdAt: string;
 }
 export interface DbWarehouse { id: number; code: string; name: string; address: string | null; isActive: boolean }
@@ -149,6 +150,8 @@ export function seedDb(): Db {
     return {
       id: i + 1,
       sku: `${prefix}-${String(counters[prefix] * 7 + 100).padStart(4, '0')}`,
+      // Most items carry the supplier's EAN-13 (621 = Syria); every fourth one only has Raff's own SKU label.
+      barcode: (i + 1) % 4 === 0 ? null : withCheckDigit(`6214503${String((i + 1) * 37).padStart(5, '0')}`),
       name, categoryId: catId(cat), unit,
       location: `${pick(aisles)}-${String(int(1, 13)).padStart(2, '0')}-${int(1, 5)}`,
       costPrice: cost, salePrice: round2(cost * (1 + margin)),

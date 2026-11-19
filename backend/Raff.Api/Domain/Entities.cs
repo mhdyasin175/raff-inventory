@@ -12,6 +12,11 @@ public class Product
 {
     public int Id { get; set; }
     public string Sku { get; set; } = string.Empty;
+
+    /// <summary>The manufacturer's barcode (EAN-13, UPC-A, …) when the product has one. Scanning it finds the product;
+    /// products without one are labelled and scanned by their SKU.</summary>
+    public string? Barcode { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public int CategoryId { get; set; }
     public Category Category { get; set; } = null!;

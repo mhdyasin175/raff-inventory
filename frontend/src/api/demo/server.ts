@@ -5,13 +5,14 @@
  */
 import { PERMISSIONS, seedDb, type Db, type DbProduct, type DbMovement, type DbUser } from './seed';
 import { EN } from './en';
+import { hasValidCheckDigit, isGtin } from '../../lib/barcode';
 
 /** Language of the current request (from Accept-Language), like the real API's request localization. */
 let lang: 'ar' | 'en' = 'ar';
 /** Translate seed data and messages for English requests; user-entered text passes through. */
 const L = (s: string | null | undefined) => (s == null ? s ?? null : lang === 'en' ? EN[s] ?? s : s) as string;
 
-const STORE_KEY = 'raff.demo.db.v2';
+const STORE_KEY = 'raff.demo.db.v3';
 let db: Db = load();
 
 function load(): Db {
@@ -226,7 +227,7 @@ on('GET', '/api/products', ({ init, q }) => {
   const cat = Number(q.get('categoryId')); if (cat) list = list.filter((p) => p.categoryId === cat);
   const s = q.get('search')?.trim();
   if (s) list = list.filter((p) => p.name.includes(s) || L(p.name).toLowerCase().includes(s.toLowerCase())
-    || p.sku.includes(s.toUpperCase()) || p.location?.includes(s.toUpperCase()));
+    || p.sku.includes(s.toUpperCase()) || p.barcode === s || p.location?.includes(s.toUpperCase()));
   const st = q.get('status');
   const qOf = (p: DbProduct) => qty(p.id, wid);
   if (st === 'out') list = list.filter((p) => qOf(p) === 0);
@@ -249,6 +250,14 @@ on('GET', '/api/products/next-sku', ({ q }) => {
   const max = Math.max(100, ...db.products.filter((p) => p.sku.startsWith(prefix + '-')).map((p) => Number(p.sku.split('-')[1]) || 0));
   return { sku: `${prefix}-${String(max + 1).padStart(4, '0')}` };
 });
+on('GET', '/api/products/lookup', ({ init, q }) => {
+  const { user, can } = currentUser(init); need(can('products.view'));
+  const code = q.get('code')?.trim() ?? '';
+  if (!code) throw new HttpError(400, lang === 'en' ? 'Enter or scan a code' : 'أدخل رمزاً أو امسح باركود');
+  const p = db.products.find((x) => x.barcode === code) ?? db.products.find((x) => x.sku === code.toUpperCase());
+  if (!p) throw new HttpError(404, lang === 'en' ? `No product has the code ${code}` : `لا يوجد منتج بالرمز ${code}`);
+  return productDto(p, resolveWh(user, q.get('warehouseId')));
+});
 on('GET', '/api/products/:id', ({ init, params, q }) => {
   const { user, can } = currentUser(init); need(can('products.view'));
   const p = db.products.find((x) => x.id === +params[0]);
@@ -266,8 +275,17 @@ const upsertProduct = (p: DbProduct, body: any) => {
   if (!sku) throw new HttpError(400, 'رمز المنتج مطلوب');
   if (!String(body.name ?? '').trim()) throw new HttpError(400, 'اسم المنتج مطلوب');
   if (db.products.some((x) => x.sku === sku && x.id !== p.id)) throw new HttpError(409, lang === 'en' ? `Code ${sku} is used by another product` : `الرمز ${sku} مستخدم لمنتج آخر`);
+  const barcode = String(body.barcode ?? '').trim() || null;
+  if (barcode && !/^[\x21-\x7E]{4,32}$/.test(barcode))
+    throw new HttpError(400, 'الباركود: 4 إلى 32 حرفاً أو رقماً إنجليزياً بلا مسافات');
+  if (barcode && isGtin(barcode) && !hasValidCheckDigit(barcode))
+    throw new HttpError(400, lang === 'en'
+      ? `Barcode ${barcode} isn't valid: its last (check) digit doesn't match. Check it was copied in full`
+      : `الباركود ${barcode} غير صحيح: الرقم الأخير (رقم التحقق) لا يطابق. تأكد من نسخه كاملاً`);
+  if (barcode && db.products.some((x) => x.barcode === barcode && x.id !== p.id))
+    throw new HttpError(409, lang === 'en' ? `Barcode ${barcode} is used by another product` : `الباركود ${barcode} مستخدم لمنتج آخر`);
   Object.assign(p, {
-    sku, name: keep(p.name ?? null, body.name.trim()), categoryId: +body.categoryId, unit: keep(p.unit ?? null, body.unit.trim()),
+    sku, barcode, name: keep(p.name ?? null, body.name.trim()), categoryId: +body.categoryId, unit: keep(p.unit ?? null, body.unit.trim()),
     location: body.location ? String(body.location).trim().toUpperCase() : null,
     costPrice: +body.costPrice, salePrice: +body.salePrice, reorderLevel: +body.reorderLevel, isActive: !!body.isActive,
   });

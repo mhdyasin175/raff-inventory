@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Wand2 } from 'lucide-react';
+import { Camera, Wand2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { Category, Product, ProductInput } from '../api/types';
 import { fmt } from '../lib/format';
 import { getLang, t } from '../i18n';
 import { Drawer, Field, FormError, useToast } from './ui';
 import { useWarehouse } from '../auth/WarehouseContext';
+import { hasValidCheckDigit, isGtin } from '../lib/barcode';
+import { CameraScanner } from './Scanner';
 
 const UNITS = {
   ar: ['قطعة', 'علبة', 'كرتونة', 'طقم', 'لفة', 'سطل', 'كيس', 'متر', 'كغ', 'لتر'],
@@ -39,7 +41,9 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
     reorderLevel: product?.reorderLevel ?? 10,
     isActive: product?.isActive ?? true,
     openingQuantity: 0,
+    barcode: product?.barcode ?? '',
   });
+  const [scanning, setScanning] = useState(false);
   // Keep raw strings for number inputs so users can type "1." without it snapping back.
   const [nums, setNums] = useState({
     costPrice: product ? String(product.costPrice) : '',
@@ -91,12 +95,15 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
       reorderLevel: Number(nums.reorderLevel || 0),
       openingQuantity: Number(nums.openingQuantity || 0),
       openingWarehouseId: openingWarehouseId || null,
+      barcode: form.barcode?.trim() || null,
     };
     const e: Record<string, string> = {};
     if (!body.name) e.name = t('pf.err.name');
     if (!body.sku) e.sku = t('pf.err.sku');
     if (!body.categoryId) e.categoryId = t('pf.err.category');
     if (body.salePrice > 0 && body.salePrice < body.costPrice) e.salePrice = t('pf.err.salePrice');
+    if (body.barcode && /\s/.test(body.barcode)) e.barcode = t('pf.err.barcodeSpaces');
+    else if (body.barcode && isGtin(body.barcode) && !hasValidCheckDigit(body.barcode)) e.barcode = t('pf.err.barcodeCheck');
     setErrors(e);
     if (Object.keys(e).length) return;
     setFormError(null);
@@ -145,6 +152,22 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
           </div>
         </Field>
       </div>
+
+      <Field label={t('pf.barcode')} error={errors.barcode} hint={t('pf.barcodeHint')}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input className="input ltr" dir="ltr" value={form.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)}
+            maxLength={32} aria-invalid={!!errors.barcode} placeholder="6214503000373" inputMode="text" autoComplete="off"
+            onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} />
+          <button type="button" className="btn btn-icon" onClick={() => setScanning(true)} title={t('scan.open')} aria-label={t('scan.open')}
+            style={{ height: 40, width: 40, flex: 'none' }}>
+            <Camera size={16} />
+          </button>
+        </div>
+      </Field>
+      {scanning && (
+        <CameraScanner title={t('pf.scanTitle')} onClose={() => setScanning(false)}
+          onDetected={(code) => { setScanning(false); set('barcode', code); }} />
+      )}
 
       <div className="grid-2">
         <Field label={t('pf.unit')}>

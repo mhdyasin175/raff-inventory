@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeftRight, BarChart3, Boxes, FolderTree, Languages, LayoutDashboard, Lock, Menu, ShieldCheck, Users, Home, Warehouse as WarehouseIcon,
+  ArrowLeftRight, BarChart3, Tag, Boxes, FolderTree, Languages, LayoutDashboard, Lock, Menu, ShieldCheck, Users, Home, Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { t, usePrefs } from '../i18n';
 import UserMenu from './UserMenu';
@@ -71,6 +71,7 @@ export default function Layout() {
               {attention > 0 && <span className="nav-count" title={t('nav.needReorder')}>{attention}</span>}
             </NavLink>
           )}
+          {can(P.productsView) && <NavLink to="/labels"><Tag size={19} />{t('nav.labels')}</NavLink>}
           {can(P.movementsView) && <NavLink to="/movements"><ArrowLeftRight size={19} />{t('nav.movements')}</NavLink>}
           {can(P.categories) && <NavLink to="/categories"><FolderTree size={19} />{t('nav.categories')}</NavLink>}
           {can(P.reports) && <NavLink to="/reports"><BarChart3 size={19} />{t('nav.reports')}</NavLink>}
