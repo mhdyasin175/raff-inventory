@@ -23,6 +23,9 @@ jobs:
         with:
           name: api-test-results
           path: test-results
+      # Fails if someone changed the entity model without adding a migration.
+      - run: dotnet tool restore
+      - run: dotnet ef migrations has-pending-model-changes --project backend/Raff.Api/Raff.Api.csproj --no-build --configuration Release
 
   web:
     name: Web build + end-to-end tests
@@ -46,3 +49,56 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report
+
+  docker:
+    name: Docker images (smoke test + publish)
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker build -f backend/Raff.Api/Dockerfile backend \
+            -t $REGISTRY/raff-api:latest -t $REGISTRY/raff-api:${{ github.sha }} \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.description="Raff inventory API (ASP.NET Core 10)"
+          docker build frontend \
+            -t $REGISTRY/raff-web:latest -t $REGISTRY/raff-web:${{ github.sha }} \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.description="Raff inventory web app (React, served by nginx)"
+
+      - name: Start the stack with the freshly built images
+        run: docker compose up -d
+
+      - name: Smoke test through nginx (health, sign-in, data, API docs)
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8080/api/health && break
+            sleep 5
+          done
+          curl -fsS http://localhost:8080/api/health | grep -q Healthy
+          TOKEN=$(curl -fsS -X POST http://localhost:8080/api/auth/login \
+            -H 'Content-Type: application/json' -d '{"username":"admin","password":"Admin@123"}' | jq -r .token)
+          test -n "$TOKEN" && test "$TOKEN" != null
+          TOTAL=$(curl -fsS http://localhost:8080/api/products -H "Authorization: Bearer $TOKEN" | jq .total)
+          echo "Seeded products: $TOTAL"
+          test "$TOTAL" -gt 0
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+          curl -fsS -o /dev/null http://localhost:8080/openapi/v1.json
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Publish to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push --all-tags $REGISTRY/raff-api
+          docker push --all-tags $REGISTRY/raff-web

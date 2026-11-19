@@ -15,7 +15,10 @@ var config = builder.Configuration;
 
 // ---------- Data ----------
 builder.Services.AddDbContext<AppDbContext>(o =>
-    o.UseSqlServer(config.GetConnectionString("Default")));
+    o.UseSqlServer(config.GetConnectionString("Default"),
+        sql => sql.EnableRetryOnFailure(maxRetryCount: 5))); // rides out SQL Server still starting in Docker
+
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database");
 
 // ---------- Auth ----------
 builder.Services.Configure<JwtOptions>(config.GetSection("Jwt"));
@@ -79,7 +82,8 @@ app.UseRequestLocalization(new RequestLocalizationOptions()
 
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+// API docs: always in Development; elsewhere only when "Docs:Enabled" is true (the Docker demo turns it on).
+if (app.Environment.IsDevelopment() || config.GetValue("Docs:Enabled", false))
 {
     app.MapOpenApi();
     app.MapScalarApiReference(o => o.WithTitle("Raff Inventory API"));
@@ -89,6 +93,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/api/health");
 
 await DbSeeder.SeedAsync(app.Services, config.GetValue("Seed:DemoData", true));
 

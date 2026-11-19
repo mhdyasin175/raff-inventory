@@ -1,0 +1,12 @@
+# Build the API and web images from this repository instead of pulling them:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Raff.Api/Dockerfile
+  web:
+    build:
+      context: ./frontend

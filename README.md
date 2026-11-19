@@ -39,6 +39,7 @@ cd frontend && npx playwright install chromium && npm run test:e2e
 - **Concurrency safety.** `Product.RowVersion` (SQL Server `rowversion`) makes two simultaneous stock-outs on the same item fail cleanly with HTTP 409 instead of corrupting the balance.
 - **Business rules on the server.** You can't take out more than is on hand, a stock-count adjustment needs a reason, a product with history is archived instead of deleted, the last active admin can't be deactivated, and the system admin role always keeps every permission.
 - **Time zones.** All timestamps are stored in UTC and the API always returns them with `Z`. Reports take the client's UTC offset, so "today" and the daily buckets match the user's local day.
+- **Health check.** `/api/health` checks the database connection; Docker and CI use it to know when the API is ready.
 - **Aggregations in SQL.** Dashboard and report numbers are computed with EF Core `GroupBy`/`Sum` queries that run as SQL, not by loading rows into memory.
 - **Consistent errors.** A global `IExceptionHandler` turns business errors into RFC 7807 problem responses with user-facing Arabic messages. The frontend shows them in context, either under a field or at the top of the form.
 - **Bilingual.** Every string comes from typed dictionaries (`src/i18n/ar.ts`, `en.ts`), so a missing key fails the build. The layout flips direction with `dir` and logical CSS properties, and charts mirror their time axis in Arabic. The API returns its error messages in the language the client sends in `Accept-Language`.
@@ -72,6 +73,30 @@ Raff/
         └── styles/index.css    # design tokens + all styles
 ```
 
+## Run it with Docker (no .NET, Node or SQL Server needed)
+
+Every push to `main` that passes the tests builds two images and publishes them to GitHub Container Registry:
+`ghcr.io/mhdyasin175/raff-api` and `ghcr.io/mhdyasin175/raff-web`. Before publishing, CI starts the whole stack
+and smoke-tests it (health check, sign-in, seeded data, API docs).
+
+All you need is [`docker-compose.yml`](docker-compose.yml):
+
+```bash
+docker compose up -d
+```
+
+Then open **http://localhost:8080** (API docs at http://localhost:8080/scalar). SQL Server, the API and the web app
+start together; the API waits until the database is healthy, applies migrations and seeds demo data.
+
+| Container | Image | Role |
+|---|---|---|
+| `db` | `mcr.microsoft.com/mssql/server:2022-latest` | SQL Server, data kept in the `raff-sql` volume |
+| `api` | `ghcr.io/mhdyasin175/raff-api` | ASP.NET Core API, runtime-only image, non-root user |
+| `web` | `ghcr.io/mhdyasin175/raff-web` | React build served by nginx, which also forwards `/api` to the API (same origin, no CORS) |
+
+To build the images from source instead: `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`.
+Passwords and the JWT key can be overridden with `SA_PASSWORD` and `JWT_KEY` environment variables.
+
 ## Running it locally
 
 ### Requirements
@@ -90,7 +115,9 @@ dotnet run
   `Server=(localdb)\\MSSQLLocalDB;Database=RaffInventory;Trusted_Connection=True;TrustServerCertificate=True`
 - Before deploying, replace `Jwt:Key`, for example with `dotnet user-secrets set "Jwt:Key" "<64+ random chars>"`.
 
-> The schema is created with `EnsureCreated()` to keep setup to one command. To switch to migrations, delete that call in `DbSeeder` and run `dotnet ef migrations add Initial`.
+> The schema is managed with **EF Core migrations** (`Data/Migrations`) and applied automatically at startup.
+> After changing an entity, add a migration with `dotnet tool restore` then `dotnet ef migrations add <Name> --project backend/Raff.Api -o Data/Migrations`.
+> CI fails if the model and the migrations ever drift apart (`dotnet ef migrations has-pending-model-changes`).
 
 ### 2. Web app
 ```bash

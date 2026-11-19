@@ -1,0 +1,46 @@
+# Runs the whole system (SQL Server + API + web) from images published by CI to GitHub Container Registry.
+#
+#   docker compose up -d            → open http://localhost:8080  (API docs: http://localhost:8080/scalar)
+#   docker compose down             → stop (data is kept in the "raff-sql" volume; add -v to wipe it)
+#
+# To build the images from this source code instead, see docker-compose.build.yml.
+
+name: raff
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:-Raff_Demo#2026}
+    volumes:
+      - raff-sql:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  api:
+    image: ghcr.io/mhdyasin175/raff-api:${RAFF_TAG:-latest}
+    environment:
+      ConnectionStrings__Default: Server=db;Database=RaffInventory;User Id=sa;Password=${SA_PASSWORD:-Raff_Demo#2026};TrustServerCertificate=True
+      Jwt__Key: ${JWT_KEY:-docker-demo-signing-key-change-me-0123456789-0123456789-0123456789}
+      Seed__DemoData: "true"
+      Docs__Enabled: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/mhdyasin175/raff-web:${RAFF_TAG:-latest}
+    ports:
+      - "${RAFF_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  raff-sql:

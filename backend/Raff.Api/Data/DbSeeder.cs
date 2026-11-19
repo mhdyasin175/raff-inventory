@@ -6,7 +6,7 @@ using Raff.Api.Domain;
 namespace Raff.Api.Data;
 
 /// <summary>
-/// Creates the database (if missing) and fills it with roles, users and — optionally —
+/// Applies migrations and fills the database with roles, users and — optionally —
 /// ~4 months of realistic demo activity so the dashboard and reports have something to show.
 /// </summary>
 public static class DbSeeder
@@ -17,7 +17,8 @@ public static class DbSeeder
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
 
-        await db.Database.EnsureCreatedAsync();
+        // Creates the database if needed and applies any pending migrations (Data/Migrations).
+        await db.Database.MigrateAsync();
 
         if (!await db.Roles.AnyAsync())
             await SeedRolesAndUsersAsync(db, hasher);
