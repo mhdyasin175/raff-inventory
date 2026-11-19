@@ -107,7 +107,7 @@ public class ReportTests(ApiFixture api)
         var bytes = await admin.GetByteArrayAsync($"/api/movements/export?from={Today}&to={Today}&tz=0");
 
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
-        Assert.StartsWith("Date,Type,Code,Product", System.Text.Encoding.UTF8.GetString(bytes[3..]));
+        Assert.StartsWith("Date,Warehouse,Type,Code,Product", System.Text.Encoding.UTF8.GetString(bytes[3..]));
     }
 
     [Fact]

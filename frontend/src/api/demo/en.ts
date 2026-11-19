@@ -99,10 +99,19 @@ export const EN: Record<string, string> = {
   'رصيد افتتاحي': 'Opening balance',
   'تسوية جرد شهري - تالف': 'Monthly count: damaged',
 
+  // warehouses
+  'المستودع الرئيسي': 'Main warehouse', 'دمشق، المنطقة الصناعية': 'Damascus, industrial zone',
+  'فرع حلب': 'Aleppo branch', 'حلب، الشيخ نجار': 'Aleppo, Sheikh Najjar',
+  'فرع حمص': 'Homs branch', 'حمص، طريق طرابلس': 'Homs, Tripoli road',
+  'لا تملك صلاحية على هذا المستودع': "You don't have access to this warehouse",
+  'اختر المستودع': 'Choose a warehouse',
+  'المستودع غير موجود': "That warehouse doesn't exist",
+  'لتسجيل نقل استخدم النوع TransferOut': 'To record a transfer, use type TransferOut',
+
   // roles & people
   'مدير النظام': 'System admin', 'صلاحيات كاملة على النظام': 'Full access to the system',
-  'مدير المخزن': 'Warehouse manager', 'يدير المنتجات والحركات والتقارير': 'Manages products, movements and reports',
-  'أمين المخزن': 'Storekeeper', 'يسجل الإدخال والإخراج اليومي': 'Records daily stock in and out',
+  'مدير المخزن': 'Warehouse manager', 'يدير المنتجات والمستودعات والحركات والتقارير': 'Manages products, warehouses, movements and reports',
+  'أمين المخزن': 'Storekeeper', 'يسجل الإدخال والإخراج والنقل في مستودعه': 'Records stock in, out and transfers in their warehouse',
   'مراجع': 'Auditor', 'اطلاع فقط على البيانات والتقارير': 'Read-only access to data and reports',
-  'محمد العلي': 'Mohammad Al-Ali', 'سامر الحلبي': 'Samer Al-Halabi', 'ريم خليل': 'Reem Khalil', 'وسيم داود': 'Wassim Dawood',
+  'محمد العلي': 'Mohammad Al-Ali', 'سامر الحلبي': 'Samer Al-Halabi', 'ريم خليل': 'Reem Khalil', 'وسيم داود': 'Wassim Dawood', 'ليلى حداد': 'Layla Haddad',
 };

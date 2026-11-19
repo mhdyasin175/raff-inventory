@@ -252,3 +252,12 @@
 [data-theme='adminlte'] .login-form > div:nth-child(2) { text-align: center; }
 [data-theme='adminlte'] .login-prefs { position: static; justify-content: space-between; }
 [data-theme='adminlte'] .demo-accounts { border-radius: 4px; }
+
+[data-theme='adminlte'] { --trf: #6f42c1; }
+[data-theme='adminlte'] .badge-trf { background: var(--trf); color: #fff; }
+[data-theme='adminlte'] .feed-icon.trf { background: var(--trf); }
+[data-theme='adminlte'] .wh-chip { background: #6c757d; border-radius: 4px; font-family: var(--font-body); font-weight: 700; }
+[data-theme='adminlte'] .wh-switch { margin: 0 8px 12px; }
+[data-theme='adminlte'] .wh-switch label { color: #c2c7d0; }
+[data-theme='adminlte'] .wh-card { border-top-color: var(--success); }
+[data-theme='adminlte'] .wh-switch .select { background-color: #454d55; border-color: #56606a; color: #fff; }

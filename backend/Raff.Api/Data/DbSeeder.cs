@@ -20,11 +20,30 @@ public static class DbSeeder
         // Creates the database if needed and applies any pending migrations (Data/Migrations).
         await db.Database.MigrateAsync();
 
+        if (!await db.Warehouses.AnyAsync())
+        {
+            db.Warehouses.Add(new Warehouse { Code = "MAIN", Name = "المستودع الرئيسي", Address = "دمشق، المنطقة الصناعية" });
+            await db.SaveChangesAsync();
+        }
+
         if (!await db.Roles.AnyAsync())
             await SeedRolesAndUsersAsync(db, hasher);
 
+        await SyncSystemRoleAsync(db);
+
         if (demoData && !await db.Products.AnyAsync())
-            await SeedDemoInventoryAsync(db);
+            await SeedDemoInventoryAsync(db, hasher);
+    }
+
+    /// <summary>The system admin role always holds every permission, including ones added in later versions.</summary>
+    private static async Task SyncSystemRoleAsync(AppDbContext db)
+    {
+        var system = await db.Roles.Include(r => r.Permissions).FirstOrDefaultAsync(r => r.IsSystem);
+        if (system is null) return;
+        var missing = Permissions.Keys.Except(system.Permissions.Select(p => p.Permission)).ToList();
+        if (missing.Count == 0) return;
+        foreach (var p in missing) system.Permissions.Add(new RolePermission { Permission = p });
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedRolesAndUsersAsync(AppDbContext db, IPasswordHasher<User> hasher)
@@ -38,39 +57,42 @@ public static class DbSeeder
         };
 
         var admin = MakeRole("مدير النظام", "صلاحيات كاملة على النظام", true, [.. Permissions.Keys]);
-        var manager = MakeRole("مدير المخزن", "يدير المنتجات والحركات والتقارير", false,
+        var manager = MakeRole("مدير المخزن", "يدير المنتجات والمستودعات والحركات والتقارير", false,
             Permissions.DashboardView, Permissions.ProductsView, Permissions.ProductsManage,
             Permissions.CategoriesManage, Permissions.MovementsView, Permissions.MovementsIn,
-            Permissions.MovementsOut, Permissions.MovementsAdjust, Permissions.ReportsView);
-        var keeper = MakeRole("أمين المخزن", "يسجل الإدخال والإخراج اليومي", false,
+            Permissions.MovementsOut, Permissions.MovementsAdjust, Permissions.MovementsTransfer,
+            Permissions.WarehousesManage, Permissions.ReportsView);
+        var keeper = MakeRole("أمين المخزن", "يسجل الإدخال والإخراج والنقل في مستودعه", false,
             Permissions.DashboardView, Permissions.ProductsView, Permissions.MovementsView,
-            Permissions.MovementsIn, Permissions.MovementsOut);
+            Permissions.MovementsIn, Permissions.MovementsOut, Permissions.MovementsTransfer);
         var viewer = MakeRole("مراجع", "اطلاع فقط على البيانات والتقارير", false,
             Permissions.DashboardView, Permissions.ProductsView, Permissions.MovementsView,
             Permissions.ReportsView);
 
         db.Roles.AddRange(admin, manager, keeper, viewer);
 
-        User MakeUser(string fullName, string username, string password, Role role)
-        {
-            var u = new User { FullName = fullName, Username = username, Role = role };
-            u.PasswordHash = hasher.HashPassword(u, password);
-            return u;
-        }
-
+        var main = await db.Warehouses.OrderBy(w => w.Id).FirstAsync();
         db.Users.AddRange(
-            MakeUser("محمد العلي", "admin", "Admin@123", admin),
-            MakeUser("سامر الحلبي", "manager", "Manager@123", manager),
-            MakeUser("ريم خليل", "keeper", "Keeper@123", keeper),
-            MakeUser("وسيم داود", "viewer", "Viewer@123", viewer));
+            MakeUser(hasher, "محمد العلي", "admin", "Admin@123", admin),
+            MakeUser(hasher, "سامر الحلبي", "manager", "Manager@123", manager),
+            MakeUser(hasher, "ريم خليل", "keeper", "Keeper@123", keeper, main),
+            MakeUser(hasher, "وسيم داود", "viewer", "Viewer@123", viewer));
 
         await db.SaveChangesAsync();
+    }
+
+    private static User MakeUser(IPasswordHasher<User> hasher, string fullName, string username, string password,
+        Role role, Warehouse? warehouse = null)
+    {
+        var u = new User { FullName = fullName, Username = username, Role = role, Warehouse = warehouse };
+        u.PasswordHash = hasher.HashPassword(u, password);
+        return u;
     }
 
     private record SeedProduct(string Category, string Prefix, string Name, string Unit,
         decimal Cost, decimal Margin, int Reorder, int Demand);
 
-    private static async Task SeedDemoInventoryAsync(AppDbContext db)
+    private static async Task SeedDemoInventoryAsync(AppDbContext db, IPasswordHasher<User> hasher)
     {
         var categories = new Dictionary<string, Category>
         {
@@ -144,88 +166,114 @@ public static class DbSeeder
         }
         db.Products.AddRange(products.Select(x => x.P));
 
+        // Two branches next to the main warehouse, plus a storekeeper limited to the Aleppo branch.
+        var main = await db.Warehouses.OrderBy(w => w.Id).FirstAsync();
+        var aleppo = new Warehouse { Code = "ALP", Name = "فرع حلب", Address = "حلب، الشيخ نجار" };
+        var homs = new Warehouse { Code = "HMS", Name = "فرع حمص", Address = "حمص، طريق طرابلس" };
+        db.Warehouses.AddRange(aleppo, homs);
+
         var keeper = await db.Users.FirstAsync(u => u.Username == "keeper");
         var manager = await db.Users.FirstAsync(u => u.Username == "manager");
+        var keeperRole = await db.Roles.FirstAsync(r => r.Id == keeper.RoleId);
+        var aleppoKeeper = MakeUser(hasher, "ليلى حداد", "aleppo", "Aleppo@123", keeperRole, aleppo);
+        db.Users.Add(aleppoKeeper);
 
         string[] suppliers = ["شركة الضياء للتجهيزات الكهربائية", "مؤسسة المتين للعدد", "مستودعات الريّان للسباكة", "شركة ألوان للدهانات", "مؤسسة الإتقان التجارية"];
         string[] customers = ["ورشة الأمل للصيانة", "مقاولات البيت الحديث", "محل النجمة للأدوات", "ورشة صيانة المدرسة", "زبون نقدي", "شركة البنيان للمقاولات", "مكتب الهندسة المتحدة"];
 
+        // Simulated on-hand quantity per (product, warehouse) while generating history.
+        var stock = new Dictionary<(Product, Warehouse), int>();
+        int Qty(Product p, Warehouse w) => stock.GetValueOrDefault((p, w));
+
         var movements = new List<StockMovement>();
         var start = DateTime.UtcNow.Date.AddDays(-120);
-        int invoiceNo = 1040, receiptNo = 310;
+        int invoiceNo = 1040, receiptNo = 310, transferNo = 50;
 
-        // Opening stock.
-        foreach (var (p, s) in products)
+        StockMovement Add(Product p, Warehouse w, MovementType type, int change, decimal price, DateTime at, User by,
+            string? party = null, string? reference = null, string? note = null)
         {
-            var qty = s.Reorder * 3 + rnd.Next(s.Demand * 4, s.Demand * 10 + 5);
-            p.Quantity = qty;
-            movements.Add(new StockMovement
+            stock[(p, w)] = Qty(p, w) + change;
+            var m = new StockMovement
             {
-                Product = p, Type = MovementType.In, QuantityChange = qty, BalanceAfter = qty,
-                UnitPrice = p.CostPrice, Party = suppliers[rnd.Next(suppliers.Length)],
-                Reference = $"RC-{receiptNo++}", Note = "رصيد افتتاحي",
-                OccurredAt = start.AddHours(9), CreatedBy = manager,
-            });
+                Product = p, Warehouse = w, Type = type, QuantityChange = change, BalanceAfter = stock[(p, w)],
+                UnitPrice = price, Party = party, Reference = reference, Note = note, OccurredAt = at, CreatedBy = by,
+            };
+            movements.Add(m);
+            return m;
         }
 
-        // Daily activity. A handful of fast movers are deliberately left un-restocked near the
-        // end so the "needs reorder" list is never empty in the demo.
-        var neglected = products.OrderByDescending(x => x.S.Demand).Take(4).Select(x => x.P).ToHashSet();
+        void Transfer(Product p, Warehouse from, Warehouse to, int qty, DateTime at, User by)
+        {
+            var id = Guid.NewGuid();
+            var reference = $"TR-{transferNo++}";
+            var outLeg = Add(p, from, MovementType.TransferOut, -qty, p.CostPrice, at, by, reference: reference);
+            var inLeg = Add(p, to, MovementType.TransferIn, qty, p.CostPrice, at.AddMinutes(1), by, reference: reference);
+            outLeg.CounterpartWarehouse = to; outLeg.TransferId = id;
+            inLeg.CounterpartWarehouse = from; inLeg.TransferId = id;
+        }
 
-        for (var day = 1; day <= 120; day++)
+        // Opening stock arrives in the main warehouse; each branch then receives a first transfer.
+        foreach (var (p, s) in products)
+        {
+            var qty = s.Reorder * 3 + rnd.Next(s.Demand * 6, s.Demand * 14 + 5);
+            Add(p, main, MovementType.In, qty, p.CostPrice, start.AddHours(9), manager,
+                suppliers[rnd.Next(suppliers.Length)], $"RC-{receiptNo++}", "رصيد افتتاحي");
+            Transfer(p, main, aleppo, Math.Max(1, qty / 4), start.AddDays(1).AddHours(10), manager);
+            Transfer(p, main, homs, Math.Max(1, qty / 6), start.AddDays(1).AddHours(11), manager);
+        }
+
+        // A handful of fast movers are deliberately left un-restocked near the end so the
+        // "needs reorder" list is never empty in the demo.
+        var neglected = products.OrderByDescending(x => x.S.Demand).Take(4).Select(x => x.P).ToHashSet();
+        (Warehouse W, double Share, User By)[] outlets = [(main, 0.5, keeper), (aleppo, 0.3, aleppoKeeper), (homs, 0.2, manager)];
+
+        for (var day = 2; day <= 120; day++)
         {
             var date = start.AddDays(day);
             var isFriday = date.DayOfWeek == DayOfWeek.Friday;
             var busy = 1.0 + day / 240.0; // business grows slowly over the period
-            var outCount = isFriday ? rnd.Next(0, 3) : (int)(rnd.Next(4, 10) * busy);
+            var outCount = isFriday ? rnd.Next(0, 3) : (int)(rnd.Next(5, 12) * busy);
+
+            // Deliveries and transfers arrive in the morning, sales happen after 10:00.
+            foreach (var (p, s) in products)
+            {
+                if (neglected.Contains(p) && day > 60) continue;
+
+                // Branches running low get a transfer from the main warehouse.
+                foreach (var branch in new[] { aleppo, homs })
+                {
+                    if (Qty(p, branch) > s.Reorder / 2 || rnd.NextDouble() > 0.5) continue;
+                    var qty = Math.Min(Qty(p, main) / 3, s.Reorder + s.Demand * rnd.Next(3, 7));
+                    if (qty > 0) Transfer(p, main, branch, qty, date.AddHours(9).AddMinutes(rnd.Next(50)), manager);
+                }
+
+                // The main warehouse is restocked by suppliers (deliveries arrive in the morning).
+                if (Qty(p, main) > p.ReorderLevel || rnd.NextDouble() > 0.55) continue;
+                var restock = s.Reorder * 2 + s.Demand * rnd.Next(8, 16);
+                Add(p, main, MovementType.In, restock, p.CostPrice, date.AddHours(8).AddMinutes(rnd.Next(50)), manager,
+                    suppliers[rnd.Next(suppliers.Length)], $"RC-{receiptNo++}");
+            }
 
             for (var i = 0; i < outCount; i++)
             {
                 var (p, s) = products[rnd.Next(products.Count)];
-                var qty = Math.Max(1, (int)(rnd.Next(1, s.Demand * 2 + 2) * busy));
-                if (p.Quantity < qty) continue;
-                p.Quantity -= qty;
-                movements.Add(new StockMovement
-                {
-                    Product = p, Type = MovementType.Out, QuantityChange = -qty, BalanceAfter = p.Quantity,
-                    UnitPrice = p.SalePrice, Party = customers[rnd.Next(customers.Length)],
-                    Reference = $"INV-{invoiceNo++}",
-                    OccurredAt = date.AddHours(rnd.Next(8, 18)).AddMinutes(rnd.Next(60)),
-                    CreatedBy = keeper,
-                });
-            }
-
-            // Restock anything at/below reorder level (suppliers deliver mornings).
-            foreach (var (p, s) in products)
-            {
-                if (p.Quantity > p.ReorderLevel || rnd.NextDouble() > 0.55) continue;
-                if (neglected.Contains(p) && day > 84) continue;
-                var qty = s.Reorder * 2 + s.Demand * rnd.Next(6, 14);
-                p.Quantity += qty;
-                movements.Add(new StockMovement
-                {
-                    Product = p, Type = MovementType.In, QuantityChange = qty, BalanceAfter = p.Quantity,
-                    UnitPrice = p.CostPrice, Party = suppliers[rnd.Next(suppliers.Length)],
-                    Reference = $"RC-{receiptNo++}",
-                    OccurredAt = date.AddHours(8).AddMinutes(rnd.Next(50)), CreatedBy = manager,
-                });
+                var roll = rnd.NextDouble();
+                var outlet = roll < outlets[0].Share ? outlets[0] : roll < outlets[0].Share + outlets[1].Share ? outlets[1] : outlets[2];
+                var qty = Math.Max(1, (int)(rnd.Next(1, s.Demand * 2 + 2) * busy * (outlet.Share + 0.3)));
+                if (Qty(p, outlet.W) < qty) continue;
+                Add(p, outlet.W, MovementType.Out, -qty, p.SalePrice,
+                    date.AddHours(rnd.Next(10, 18)).AddMinutes(rnd.Next(60)), outlet.By,
+                    customers[rnd.Next(customers.Length)], $"INV-{invoiceNo++}");
             }
 
             // Occasional stock-count adjustment (damage / miscount).
             if (day % 30 == 0)
             {
                 var (p, _) = products[rnd.Next(products.Count)];
-                var diff = -Math.Min(p.Quantity, rnd.Next(1, 4));
+                var diff = -Math.Min(Qty(p, main), rnd.Next(1, 4));
                 if (diff != 0)
-                {
-                    p.Quantity += diff;
-                    movements.Add(new StockMovement
-                    {
-                        Product = p, Type = MovementType.Adjustment, QuantityChange = diff, BalanceAfter = p.Quantity,
-                        UnitPrice = p.CostPrice, Note = "تسوية جرد شهري - تالف",
-                        OccurredAt = date.AddHours(17), CreatedBy = manager,
-                    });
-                }
+                    Add(p, main, MovementType.Adjustment, diff, p.CostPrice, date.AddHours(17), manager,
+                        note: "تسوية جرد شهري - تالف");
             }
         }
 
@@ -235,6 +283,7 @@ public static class DbSeeder
             m.OccurredAt = now.AddMinutes(-rnd.Next(5, 240));
 
         db.StockMovements.AddRange(movements);
+        db.StockLevels.AddRange(stock.Select(kv => new StockLevel { Product = kv.Key.Item1, Warehouse = kv.Key.Item2, Quantity = kv.Value }));
         await db.SaveChangesAsync();
     }
 }

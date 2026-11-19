@@ -90,7 +90,7 @@ export function permGroupKey(permKey: string): TKey {
   if (area === 'products' || area === 'categories') return 'pg.products';
   if (area === 'movements') return 'pg.movements';
   if (area === 'reports') return 'pg.reports';
-  if (area === 'users' || area === 'roles') return 'pg.admin';
+  if (area === 'users' || area === 'roles' || area === 'warehouses') return 'pg.admin';
   return 'pg.dashboard';
 }
 

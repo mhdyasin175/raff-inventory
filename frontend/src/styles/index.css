@@ -628,3 +628,35 @@ table.data .end { text-align: end; }
 .swatch i { width: 10px; height: 22px; }
 .menu-sep { height: 1px; background: var(--rule); margin: 6px 0; }
 .user-menu .topbar-user .me-name { color: inherit; }
+
+/* Transfers & warehouse chips */
+:root { --trf: #6d4bb8; --trf-soft: #efe9fb; }
+.badge-trf { background: var(--trf-soft); color: var(--trf); }
+.qty-trf { color: var(--trf); font-weight: 600; }
+.feed-icon.trf { background: var(--trf-soft); color: var(--trf); }
+.wh-chip {
+  display: inline-block; direction: ltr; font-family: var(--font-code); font-size: 11.5px; font-weight: 600;
+  padding: 0 6px; line-height: 19px; border-radius: 4px; background: var(--ink-2); color: #fff; letter-spacing: 0.02em;
+}
+
+/* Warehouse switcher in the sidebar */
+.wh-switch { margin: 0 14px 14px; display: flex; flex-direction: column; gap: 4px; }
+.wh-switch label { font-size: 12px; color: var(--steel-2); }
+.wh-switch .select {
+  height: 36px; background-color: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #fff; font-size: 14px;
+}
+.wh-switch .select option { color: var(--ink); }
+.wh-switch .locked { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.06); color: #fff; font-size: 14px; }
+
+.stock-split { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-radius: var(--r-md); }
+.stock-split li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid #eceee9; font-size: 14px; }
+.stock-split li:first-child { border-top: 0; }
+.stock-split li.zero { color: var(--steel-2); }
+
+.wh-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.wh-card .row { display: flex; align-items: center; gap: 8px; }
+.wh-card h3 { flex: 1; font-size: 16px; }
+.wh-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13.5px; color: var(--steel); margin-top: 4px; }
+.wh-card .figures strong { color: var(--ink); font-weight: 600; }
+.wh-card.inactive { opacity: 0.6; }

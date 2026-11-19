@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { PrefsProvider } from './i18n';
+import { WarehouseProvider } from './auth/WarehouseContext';
 import { ToastProvider } from './components/ui';
 import { ApiError } from './api/client';
 import App from './App';
@@ -45,9 +46,11 @@ createRoot(document.getElementById('root')!).render(
       <HashRouter>
         <AuthProvider>
           <PrefsProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
+            <WarehouseProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </WarehouseProvider>
           </PrefsProvider>
         </AuthProvider>
       </HashRouter>

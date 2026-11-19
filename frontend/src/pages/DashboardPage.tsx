@@ -5,10 +5,11 @@ import { AlertTriangle, PackageMinus, Plus, TrendingUp, Warehouse } from 'lucide
 import { api, tzOffset } from '../api/client';
 import type { Category, DashboardSummary, LowStockItem, Movement, TrendPoint } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { PageHead } from '../components/Layout';
 import FlowChart from '../components/FlowChart';
 import MovementForm, { canRecordMovements } from '../components/MovementForm';
-import { MovementIcon, QtyChange, StockGauge } from '../components/inventory';
+import { MovementIcon, QtyChange, StockGauge, WarehouseChip } from '../components/inventory';
 import { EmptyState, ErrorState } from '../components/ui';
 import { fmt, greeting, relativeTime } from '../lib/format';
 import { t } from '../i18n';
@@ -59,11 +60,13 @@ export default function DashboardPage() {
   const [metric, setMetric] = useState<'units' | 'value'>('units');
   const [recording, setRecording] = useState(false);
   const tz = tzOffset();
+  const wh = useWarehouse();
+  const w = wh.param;
 
-  const summary = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: () => api.get<DashboardSummary>('/api/dashboard/summary', { tz }) });
-  const trend = useQuery({ queryKey: ['dashboard', 'trend', days], queryFn: () => api.get<TrendPoint[]>('/api/dashboard/trend', { days, tz }) });
-  const low = useQuery({ queryKey: ['dashboard', 'low'], queryFn: () => api.get<LowStockItem[]>('/api/dashboard/low-stock', { take: 7 }) });
-  const recent = useQuery({ queryKey: ['dashboard', 'recent'], queryFn: () => api.get<Movement[]>('/api/dashboard/recent', { take: 7 }) });
+  const summary = useQuery({ queryKey: ['dashboard', 'summary', w], queryFn: () => api.get<DashboardSummary>('/api/dashboard/summary', { tz, warehouseId: w }) });
+  const trend = useQuery({ queryKey: ['dashboard', 'trend', days, w], queryFn: () => api.get<TrendPoint[]>('/api/dashboard/trend', { days, tz, warehouseId: w }) });
+  const low = useQuery({ queryKey: ['dashboard', 'low', w], queryFn: () => api.get<LowStockItem[]>('/api/dashboard/low-stock', { take: 7, warehouseId: w }) });
+  const recent = useQuery({ queryKey: ['dashboard', 'recent', w], queryFn: () => api.get<Movement[]>('/api/dashboard/recent', { take: 7, warehouseId: w }) });
   const cats = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/api/categories'), enabled: can(P.productsView) });
 
   const catMax = Math.max(1, ...(cats.data ?? []).map((c) => c.stockValue));
@@ -74,7 +77,7 @@ export default function DashboardPage() {
       <PageHead
         title={greeting(firstName ?? '')}
         crumb={t('nav.dashboard')}
-        subtitle={fmt.today()}
+        subtitle={`${fmt.today()}${t('common.sep')}${wh.selected?.name ?? t('wh.all')}`}
         actions={canRecordMovements(can) && (
           <button className="btn btn-primary" onClick={() => setRecording(true)}><Plus size={18} /> {t('dash.record')}</button>
         )}
@@ -125,7 +128,10 @@ export default function DashboardPage() {
                       <div style={{ minWidth: 0 }}>
                         <div className="cell-title">{m.productName}</div>
                         <div className="meta">
-                          {relativeTime(m.occurredAt)}{t('common.sep')}{m.party ?? m.note ?? m.createdBy}
+                          {!w && <><WarehouseChip code={m.warehouseCode} title={m.warehouseName} />{' '}</>}
+                          {relativeTime(m.occurredAt)}{t('common.sep')}{m.counterpartWarehouseCode
+                            ? t(m.type === 'TransferOut' ? 'mv.transferTo' : 'mv.transferFrom', { code: m.counterpartWarehouseCode })
+                            : m.party ?? m.note ?? m.createdBy}
                         </div>
                       </div>
                       <div className="amount">

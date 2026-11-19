@@ -77,16 +77,8 @@ namespace Raff.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
                     b.Property<int>("ReorderLevel")
                         .HasColumnType("int");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
 
                     b.Property<decimal>("SalePrice")
                         .HasPrecision(18, 2)
@@ -114,10 +106,7 @@ namespace Raff.Api.Data.Migrations
                     b.HasIndex("Sku")
                         .IsUnique();
 
-                    b.ToTable("Products", t =>
-                        {
-                            t.HasCheckConstraint("CK_Product_Quantity", "[Quantity] >= 0");
-                        });
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("Raff.Api.Domain.Role", b =>
@@ -162,6 +151,32 @@ namespace Raff.Api.Data.Migrations
                     b.ToTable("RolePermissions");
                 });
 
+            modelBuilder.Entity("Raff.Api.Domain.StockLevel", b =>
+                {
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("ProductId", "WarehouseId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.ToTable("StockLevels", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockLevel_Quantity", "[Quantity] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Raff.Api.Domain.StockMovement", b =>
                 {
                     b.Property<long>("Id")
@@ -171,6 +186,9 @@ namespace Raff.Api.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<int>("BalanceAfter")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CounterpartWarehouseId")
                         .HasColumnType("int");
 
                     b.Property<int>("CreatedById")
@@ -197,6 +215,9 @@ namespace Raff.Api.Data.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
+                    b.Property<Guid?>("TransferId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<byte>("Type")
                         .HasColumnType("tinyint");
 
@@ -204,13 +225,22 @@ namespace Raff.Api.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("CounterpartWarehouseId");
 
                     b.HasIndex("CreatedById");
 
                     b.HasIndex("OccurredAt");
 
+                    b.HasIndex("TransferId");
+
                     b.HasIndex("ProductId", "OccurredAt");
+
+                    b.HasIndex("WarehouseId", "OccurredAt");
 
                     b.ToTable("StockMovements");
                 });
@@ -250,6 +280,9 @@ namespace Raff.Api.Data.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RoleId");
@@ -257,7 +290,48 @@ namespace Raff.Api.Data.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
+                    b.HasIndex("WarehouseId");
+
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Raff.Api.Domain.Warehouse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Warehouses");
                 });
 
             modelBuilder.Entity("Raff.Api.Domain.Product", b =>
@@ -282,8 +356,32 @@ namespace Raff.Api.Data.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("Raff.Api.Domain.StockLevel", b =>
+                {
+                    b.HasOne("Raff.Api.Domain.Product", "Product")
+                        .WithMany("StockLevels")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Raff.Api.Domain.Warehouse", "Warehouse")
+                        .WithMany("StockLevels")
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Warehouse");
+                });
+
             modelBuilder.Entity("Raff.Api.Domain.StockMovement", b =>
                 {
+                    b.HasOne("Raff.Api.Domain.Warehouse", "CounterpartWarehouse")
+                        .WithMany()
+                        .HasForeignKey("CounterpartWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Raff.Api.Domain.User", "CreatedBy")
                         .WithMany()
                         .HasForeignKey("CreatedById")
@@ -296,9 +394,19 @@ namespace Raff.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Raff.Api.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CounterpartWarehouse");
+
                     b.Navigation("CreatedBy");
 
                     b.Navigation("Product");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("Raff.Api.Domain.User", b =>
@@ -309,7 +417,14 @@ namespace Raff.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Raff.Api.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Role");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("Raff.Api.Domain.Category", b =>
@@ -320,6 +435,8 @@ namespace Raff.Api.Data.Migrations
             modelBuilder.Entity("Raff.Api.Domain.Product", b =>
                 {
                     b.Navigation("Movements");
+
+                    b.Navigation("StockLevels");
                 });
 
             modelBuilder.Entity("Raff.Api.Domain.Role", b =>
@@ -327,6 +444,11 @@ namespace Raff.Api.Data.Migrations
                     b.Navigation("Permissions");
 
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("Raff.Api.Domain.Warehouse", b =>
+                {
+                    b.Navigation("StockLevels");
                 });
 #pragma warning restore 612, 618
         }

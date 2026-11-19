@@ -19,6 +19,12 @@ public static class Permissions
     public const string MovementsIn = "movements.in";
     public const string MovementsOut = "movements.out";
     public const string MovementsAdjust = "movements.adjust";
+    public const string MovementsTransfer = "movements.transfer";
+
+    public const string WarehousesManage = "warehouses.manage";
+
+    /// <summary>Claim carrying the warehouse a user is limited to (absent = all warehouses).</summary>
+    public const string WarehouseClaim = "wh";
 
     public const string ReportsView = "reports.view";
 
@@ -38,7 +44,9 @@ public static class Permissions
         new(MovementsIn, "الحركات", "تسجيل إدخال"),
         new(MovementsOut, "الحركات", "تسجيل إخراج"),
         new(MovementsAdjust, "الحركات", "تسوية الجرد"),
+        new(MovementsTransfer, "الحركات", "نقل بين المستودعات"),
         new(ReportsView, "التقارير", "عرض التقارير والتصدير"),
+        new(WarehousesManage, "الإدارة", "إدارة المستودعات"),
         new(UsersManage, "الإدارة", "إدارة المستخدمين"),
         new(RolesManage, "الإدارة", "إدارة الأدوار والصلاحيات"),
     ];

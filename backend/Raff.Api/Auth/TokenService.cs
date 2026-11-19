@@ -29,6 +29,8 @@ public class TokenService(IOptions<JwtOptions> options)
             new("role", user.Role.Name),
         };
         claims.AddRange(permissions.Select(p => new Claim(Permissions.ClaimType, p)));
+        if (user.WarehouseId is { } wh)
+            claims.Add(new Claim(Permissions.WarehouseClaim, wh.ToString()));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opt.Key));
         var expires = DateTime.UtcNow.AddHours(_opt.ExpiresHours);
@@ -53,5 +55,25 @@ public static class ClaimsPrincipalExtensions
         var sub = user.FindFirstValue("sub")
                   ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(sub, out var id) ? id : throw new UnauthorizedAccessException();
+    }
+
+    /// <summary>The single warehouse this user is limited to, or null when they may see all warehouses.</summary>
+    public static int? WarehouseScope(this ClaimsPrincipal user) =>
+        int.TryParse(user.FindFirstValue(Permissions.WarehouseClaim), out var wh) ? wh : null;
+
+    /// <summary>
+    /// Applies the user's warehouse limit to a requested warehouse filter:
+    /// unrestricted users get what they asked for (null = all); restricted users always get their own
+    /// warehouse, and asking for a different one is refused.
+    /// </summary>
+    public static int? ResolveWarehouse(this ClaimsPrincipal user, int? requested)
+    {
+        var scope = user.WarehouseScope();
+        if (scope is null) return requested is > 0 ? requested : null;
+        if (requested is > 0 && requested != scope)
+            throw new Infrastructure.AppException(
+                Infrastructure.Msg.T("لا تملك صلاحية على هذا المستودع", "You don't have access to this warehouse"),
+                StatusCodes.Status403Forbidden);
+        return scope;
     }
 }

@@ -2,10 +2,11 @@ import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeftRight, BarChart3, Boxes, FolderTree, Languages, LayoutDashboard, Menu, ShieldCheck, Users, Home,
+  ArrowLeftRight, BarChart3, Boxes, FolderTree, Languages, LayoutDashboard, Lock, Menu, ShieldCheck, Users, Home, Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { t, usePrefs } from '../i18n';
 import UserMenu from './UserMenu';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { api, IS_DEMO, tzOffset } from '../api/client';
 import type { DashboardSummary } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
@@ -33,9 +34,10 @@ export default function Layout() {
   const location = useLocation();
   useEffect(() => setNavOpen(false), [location.pathname]);
 
+  const wh = useWarehouse();
   const summary = useQuery({
-    queryKey: ['dashboard', 'summary'],
-    queryFn: () => api.get<DashboardSummary>('/api/dashboard/summary', { tz: tzOffset() }),
+    queryKey: ['dashboard', 'summary', wh.param],
+    queryFn: () => api.get<DashboardSummary>('/api/dashboard/summary', { tz: tzOffset(), warehouseId: wh.param }),
     enabled: can(P.dashboard),
   });
   const attention = (summary.data?.lowStockCount ?? 0) + (summary.data?.outOfStockCount ?? 0);
@@ -59,6 +61,8 @@ export default function Layout() {
           </div>
         </NavLink>
 
+        <WarehouseSwitcher />
+
         <nav className="nav">
           {can(P.dashboard) && <NavLink to="/" end><LayoutDashboard size={19} />{t('nav.dashboard')}</NavLink>}
           {can(P.productsView) && (
@@ -71,7 +75,8 @@ export default function Layout() {
           {can(P.categories) && <NavLink to="/categories"><FolderTree size={19} />{t('nav.categories')}</NavLink>}
           {can(P.reports) && <NavLink to="/reports"><BarChart3 size={19} />{t('nav.reports')}</NavLink>}
 
-          {can(P.users, P.roles) && <div className="nav-group">{t('nav.admin')}</div>}
+          {can(P.users, P.roles, P.warehouses) && <div className="nav-group">{t('nav.admin')}</div>}
+          {can(P.warehouses) && <NavLink to="/warehouses"><WarehouseIcon size={19} />{t('nav.warehouses')}</NavLink>}
           {can(P.users) && <NavLink to="/users"><Users size={19} />{t('nav.users')}</NavLink>}
           {can(P.roles) && <NavLink to="/roles"><ShieldCheck size={19} />{t('nav.roles')}</NavLink>}
         </nav>
@@ -114,5 +119,28 @@ export function PageHead({ title, subtitle, actions, crumb }: { title: string; s
       </div>
       {actions && <div className="actions">{actions}</div>}
     </header>
+  );
+}
+
+/** Chooses which warehouse every page shows; users limited to one warehouse just see its name. */
+function WarehouseSwitcher() {
+  const { warehouses, selectedId, select, locked, selected } = useWarehouse();
+  if (warehouses.length === 0) return null;
+  if (locked) {
+    return (
+      <div className="wh-switch">
+        <label>{t('wh.switch')}</label>
+        <div className="locked" title={t('wh.lockedHint')}><Lock size={14} aria-hidden="true" /> {selected?.name}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="wh-switch">
+      <label htmlFor="wh-switch">{t('wh.switch')}</label>
+      <select id="wh-switch" className="select" value={selectedId ?? 0} onChange={(e) => select(Number(e.target.value) || null)}>
+        <option value={0}>{t('wh.all')}</option>
+        {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+      </select>
+    </div>
   );
 }

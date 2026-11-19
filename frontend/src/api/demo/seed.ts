@@ -7,20 +7,25 @@ import type { MovementType } from '../types';
 export interface DbCategory { id: number; name: string; description: string | null }
 export interface DbProduct {
   id: number; sku: string; name: string; categoryId: number; unit: string; location: string | null;
-  costPrice: number; salePrice: number; quantity: number; reorderLevel: number; isActive: boolean; createdAt: string;
+  costPrice: number; salePrice: number; reorderLevel: number; isActive: boolean; createdAt: string;
 }
+export interface DbWarehouse { id: number; code: string; name: string; address: string | null; isActive: boolean }
+/** On-hand quantity of one product in one warehouse. */
+export interface DbLevel { productId: number; warehouseId: number; quantity: number }
 export interface DbMovement {
-  id: number; productId: number; type: MovementType; quantityChange: number; balanceAfter: number;
+  id: number; productId: number; warehouseId: number; type: MovementType; quantityChange: number; balanceAfter: number;
   unitPrice: number; party: string | null; reference: string | null; note: string | null;
   occurredAt: string; createdById: number;
+  counterpartWarehouseId: number | null; transferId: string | null;
 }
 export interface DbRole { id: number; name: string; description: string | null; isSystem: boolean; permissions: string[] }
 export interface DbUser {
   id: number; fullName: string; username: string; password: string; roleId: number;
-  isActive: boolean; createdAt: string; lastLoginAt: string | null;
+  isActive: boolean; createdAt: string; lastLoginAt: string | null; warehouseId: number | null;
 }
 export interface Db {
   categories: DbCategory[]; products: DbProduct[]; movements: DbMovement[]; roles: DbRole[]; users: DbUser[];
+  warehouses: DbWarehouse[]; levels: DbLevel[];
 }
 
 export const PERMISSIONS = [
@@ -32,7 +37,9 @@ export const PERMISSIONS = [
   { key: 'movements.in', group: 'الحركات', label: 'تسجيل إدخال' },
   { key: 'movements.out', group: 'الحركات', label: 'تسجيل إخراج' },
   { key: 'movements.adjust', group: 'الحركات', label: 'تسوية الجرد' },
+  { key: 'movements.transfer', group: 'الحركات', label: 'نقل بين المستودعات' },
   { key: 'reports.view', group: 'التقارير', label: 'عرض التقارير والتصدير' },
+  { key: 'warehouses.manage', group: 'الإدارة', label: 'إدارة المستودعات' },
   { key: 'users.manage', group: 'الإدارة', label: 'إدارة المستخدمين' },
   { key: 'roles.manage', group: 'الإدارة', label: 'إدارة الأدوار والصلاحيات' },
 ];
@@ -107,21 +114,29 @@ export function seedDb(): Db {
   const all = PERMISSIONS.map((p) => p.key);
   const roles: DbRole[] = [
     { id: 1, name: 'مدير النظام', description: 'صلاحيات كاملة على النظام', isSystem: true, permissions: all },
-    { id: 2, name: 'مدير المخزن', description: 'يدير المنتجات والحركات والتقارير', isSystem: false,
+    { id: 2, name: 'مدير المخزن', description: 'يدير المنتجات والمستودعات والحركات والتقارير', isSystem: false,
       permissions: all.filter((p) => !p.startsWith('users') && !p.startsWith('roles')) },
-    { id: 3, name: 'أمين المخزن', description: 'يسجل الإدخال والإخراج اليومي', isSystem: false,
-      permissions: ['dashboard.view', 'products.view', 'movements.view', 'movements.in', 'movements.out'] },
+    { id: 3, name: 'أمين المخزن', description: 'يسجل الإدخال والإخراج والنقل في مستودعه', isSystem: false,
+      permissions: ['dashboard.view', 'products.view', 'movements.view', 'movements.in', 'movements.out', 'movements.transfer'] },
     { id: 4, name: 'مراجع', description: 'اطلاع فقط على البيانات والتقارير', isSystem: false,
       permissions: ['dashboard.view', 'products.view', 'movements.view', 'reports.view'] },
   ];
 
+  const warehouses: DbWarehouse[] = [
+    { id: 1, code: 'MAIN', name: 'المستودع الرئيسي', address: 'دمشق، المنطقة الصناعية', isActive: true },
+    { id: 2, code: 'ALP', name: 'فرع حلب', address: 'حلب، الشيخ نجار', isActive: true },
+    { id: 3, code: 'HMS', name: 'فرع حمص', address: 'حمص، طريق طرابلس', isActive: true },
+  ];
+  const [MAIN, ALP, HMS] = [1, 2, 3];
+
   const now = Date.now();
   const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const users: DbUser[] = [
-    { id: 1, fullName: 'محمد العلي', username: 'admin', password: 'Admin@123', roleId: 1, isActive: true, createdAt: iso(now - 130 * 864e5), lastLoginAt: iso(now - 2 * 36e5) },
-    { id: 2, fullName: 'سامر الحلبي', username: 'manager', password: 'Manager@123', roleId: 2, isActive: true, createdAt: iso(now - 128 * 864e5), lastLoginAt: iso(now - 26 * 36e5) },
-    { id: 3, fullName: 'ريم خليل', username: 'keeper', password: 'Keeper@123', roleId: 3, isActive: true, createdAt: iso(now - 128 * 864e5), lastLoginAt: iso(now - 5 * 36e5) },
-    { id: 4, fullName: 'وسيم داود', username: 'viewer', password: 'Viewer@123', roleId: 4, isActive: true, createdAt: iso(now - 90 * 864e5), lastLoginAt: null },
+    { id: 1, fullName: 'محمد العلي', username: 'admin', password: 'Admin@123', roleId: 1, isActive: true, createdAt: iso(now - 130 * 864e5), lastLoginAt: iso(now - 2 * 36e5), warehouseId: null },
+    { id: 2, fullName: 'سامر الحلبي', username: 'manager', password: 'Manager@123', roleId: 2, isActive: true, createdAt: iso(now - 128 * 864e5), lastLoginAt: iso(now - 26 * 36e5), warehouseId: null },
+    { id: 3, fullName: 'ريم خليل', username: 'keeper', password: 'Keeper@123', roleId: 3, isActive: true, createdAt: iso(now - 128 * 864e5), lastLoginAt: iso(now - 5 * 36e5), warehouseId: MAIN },
+    { id: 4, fullName: 'وسيم داود', username: 'viewer', password: 'Viewer@123', roleId: 4, isActive: true, createdAt: iso(now - 90 * 864e5), lastLoginAt: null, warehouseId: null },
+    { id: 5, fullName: 'ليلى حداد', username: 'aleppo', password: 'Aleppo@123', roleId: 3, isActive: true, createdAt: iso(now - 120 * 864e5), lastLoginAt: iso(now - 8 * 36e5), warehouseId: ALP },
   ];
 
   const categories: DbCategory[] = CATEGORIES.map(([name, description], i) => ({ id: i + 1, name, description }));
@@ -137,71 +152,104 @@ export function seedDb(): Db {
       name, categoryId: catId(cat), unit,
       location: `${pick(aisles)}-${String(int(1, 13)).padStart(2, '0')}-${int(1, 5)}`,
       costPrice: cost, salePrice: round2(cost * (1 + margin)),
-      quantity: 0, reorderLevel: reorder, isActive: true, createdAt: iso(now - 125 * 864e5),
+      reorderLevel: reorder, isActive: true, createdAt: iso(now - 125 * 864e5),
     };
   });
 
-  const movements: DbMovement[] = [];
-  let mid = 1, invoice = 1040, receipt = 310;
+  // Simulated on-hand quantity per product and warehouse while generating history.
+  const stock = new Map<string, number>();
+  const key = (pid: number, wid: number) => `${pid}:${wid}`;
+  const qtyOf = (pid: number, wid: number) => stock.get(key(pid, wid)) ?? 0;
+
+  type Draft = Omit<DbMovement, 'id' | 'balanceAfter' | 'counterpartWarehouseId' | 'transferId'> &
+    Partial<Pick<DbMovement, 'counterpartWarehouseId' | 'transferId'>>;
+  const drafts: Draft[] = [];
+  let invoice = 1040, receipt = 310, transferNo = 50, tid = 1;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const start = today.getTime() - 120 * 864e5;
-  const push = (m: Omit<DbMovement, 'id'>) => movements.push({ id: mid++, ...m });
+
+  const add = (d: Draft) => { stock.set(key(d.productId, d.warehouseId), qtyOf(d.productId, d.warehouseId) + d.quantityChange); drafts.push(d); };
+  const transfer = (p: DbProduct, from: number, to: number, qty: number, at: number, by: number) => {
+    const ref = `TR-${transferNo++}`, transferId = `demo-${tid++}`;
+    add({ productId: p.id, warehouseId: from, type: 'TransferOut', quantityChange: -qty, unitPrice: p.costPrice,
+      party: null, reference: ref, note: null, occurredAt: iso(at), createdById: by, counterpartWarehouseId: to, transferId });
+    add({ productId: p.id, warehouseId: to, type: 'TransferIn', quantityChange: qty, unitPrice: p.costPrice,
+      party: null, reference: ref, note: null, occurredAt: iso(at + 6e4), createdById: by, counterpartWarehouseId: from, transferId });
+  };
 
   products.forEach((p, i) => {
     const [, , , , , , reorder, demand] = ITEMS[i];
-    const qty = reorder * 3 + int(demand * 4, demand * 10 + 5);
-    p.quantity = qty;
-    push({ productId: p.id, type: 'In', quantityChange: qty, balanceAfter: qty, unitPrice: p.costPrice,
+    const qty = reorder * 3 + int(demand * 6, demand * 14 + 5);
+    add({ productId: p.id, warehouseId: MAIN, type: 'In', quantityChange: qty, unitPrice: p.costPrice,
       party: pick(SUPPLIERS), reference: `RC-${receipt++}`, note: 'رصيد افتتاحي', occurredAt: iso(start + 9 * 36e5), createdById: 2 });
+    transfer(p, MAIN, ALP, Math.max(1, Math.floor(qty / 4)), start + 864e5 + 10 * 36e5, 2);
+    transfer(p, MAIN, HMS, Math.max(1, Math.floor(qty / 6)), start + 864e5 + 11 * 36e5, 2);
   });
 
   const neglected = new Set(
     ITEMS.map((it, i) => ({ i, d: it[7] })).sort((a, b) => b.d - a.d).slice(0, 4).map((x) => products[x.i].id),
   );
+  const outlets = [{ w: MAIN, share: 0.5, by: 3 }, { w: ALP, share: 0.3, by: 5 }, { w: HMS, share: 0.2, by: 2 }];
 
-  for (let day = 1; day <= 120; day++) {
+  for (let day = 2; day <= 120; day++) {
     const dayStart = start + day * 864e5;
     const isFriday = new Date(dayStart).getDay() === 5;
     const busy = 1 + day / 240;
-    const outCount = isFriday ? int(0, 3) : Math.floor(int(4, 10) * busy);
+    const outCount = isFriday ? int(0, 3) : Math.floor(int(5, 12) * busy);
 
-    const dayMoves: Omit<DbMovement, 'id'>[] = [];
+    // Deliveries and transfers arrive in the morning, sales happen after 10:00.
+    products.forEach((p, idx) => {
+      if (neglected.has(p.id) && day > 60) return;
+      const [, , , , , , reorder, demand] = ITEMS[idx];
+      for (const branch of [ALP, HMS]) {
+        if (qtyOf(p.id, branch) > reorder / 2 || r() > 0.5) continue;
+        const qty = Math.min(Math.floor(qtyOf(p.id, MAIN) / 3), reorder + demand * int(3, 7));
+        if (qty > 0) transfer(p, MAIN, branch, qty, dayStart + 9 * 36e5 + int(0, 50) * 6e4, 2);
+      }
+      if (qtyOf(p.id, MAIN) > p.reorderLevel || r() > 0.55) return;
+      const qty = reorder * 2 + demand * int(8, 16);
+      add({ productId: p.id, warehouseId: MAIN, type: 'In', quantityChange: qty, unitPrice: p.costPrice,
+        party: pick(SUPPLIERS), reference: `RC-${receipt++}`, note: null,
+        occurredAt: iso(dayStart + 8 * 36e5 + int(0, 50) * 6e4), createdById: 2 });
+    });
     for (let k = 0; k < outCount; k++) {
       const idx = int(0, products.length);
       const p = products[idx];
       const demand = ITEMS[idx][7];
-      const qty = Math.max(1, Math.floor(int(1, demand * 2 + 2) * busy));
-      if (p.quantity < qty) continue;
-      p.quantity -= qty;
-      dayMoves.push({ productId: p.id, type: 'Out', quantityChange: -qty, balanceAfter: p.quantity, unitPrice: p.salePrice,
+      const roll = r();
+      const o = roll < 0.5 ? outlets[0] : roll < 0.8 ? outlets[1] : outlets[2];
+      const qty = Math.max(1, Math.floor(int(1, demand * 2 + 2) * busy * (o.share + 0.3)));
+      if (qtyOf(p.id, o.w) < qty) continue;
+      add({ productId: p.id, warehouseId: o.w, type: 'Out', quantityChange: -qty, unitPrice: p.salePrice,
         party: pick(CUSTOMERS), reference: `INV-${invoice++}`, note: null,
-        occurredAt: iso(dayStart + int(8, 18) * 36e5 + int(0, 60) * 6e4), createdById: 3 });
+        occurredAt: iso(dayStart + int(10, 18) * 36e5 + int(0, 60) * 6e4), createdById: o.by });
     }
-    products.forEach((p, idx) => {
-      if (p.quantity > p.reorderLevel || r() > 0.55) return;
-      if (neglected.has(p.id) && day > 84) return;
-      const [, , , , , , reorder, demand] = ITEMS[idx];
-      const qty = reorder * 2 + demand * int(6, 14);
-      p.quantity += qty;
-      dayMoves.push({ productId: p.id, type: 'In', quantityChange: qty, balanceAfter: p.quantity, unitPrice: p.costPrice,
-        party: pick(SUPPLIERS), reference: `RC-${receipt++}`, note: null,
-        occurredAt: iso(dayStart + 8 * 36e5 + int(0, 50) * 6e4), createdById: 2 });
-    });
     if (day % 30 === 0) {
       const p = products[int(0, products.length)];
-      const diff = -Math.min(p.quantity, int(1, 4));
-      if (diff !== 0) {
-        p.quantity += diff;
-        dayMoves.push({ productId: p.id, type: 'Adjustment', quantityChange: diff, balanceAfter: p.quantity,
-          unitPrice: p.costPrice, party: null, reference: null, note: 'تسوية جرد شهري - تالف',
-          occurredAt: iso(dayStart + 17 * 36e5), createdById: 2 });
-      }
+      const diff = -Math.min(qtyOf(p.id, MAIN), int(1, 4));
+      if (diff !== 0)
+        add({ productId: p.id, warehouseId: MAIN, type: 'Adjustment', quantityChange: diff, unitPrice: p.costPrice,
+          party: null, reference: null, note: 'تسوية جرد شهري - تالف', occurredAt: iso(dayStart + 17 * 36e5), createdById: 2 });
     }
-    dayMoves.forEach((m) => {
-      if (Date.parse(m.occurredAt) > now) m.occurredAt = iso(now - int(5, 240) * 6e4);
-      push(m);
-    });
   }
 
-  return { categories, products, movements, roles, users };
+  // Replay in time order to compute each warehouse's balance after every movement.
+  drafts.forEach((d) => { if (Date.parse(d.occurredAt) > now) d.occurredAt = iso(now - int(5, 240) * 6e4); });
+  const running = new Map<string, number>();
+  const movements: DbMovement[] = drafts
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => a.d.occurredAt.localeCompare(b.d.occurredAt) || a.i - b.i)
+    .map(({ d }, i) => {
+      const k = key(d.productId, d.warehouseId);
+      const balance = (running.get(k) ?? 0) + d.quantityChange;
+      running.set(k, balance);
+      return { counterpartWarehouseId: null, transferId: null, ...d, id: i + 1, balanceAfter: balance };
+    });
+
+  const levels: DbLevel[] = [...stock.entries()].map(([k, quantity]) => {
+    const [productId, warehouseId] = k.split(':').map(Number);
+    return { productId, warehouseId, quantity };
+  });
+
+  return { categories, products, movements, roles, users, warehouses, levels };
 }

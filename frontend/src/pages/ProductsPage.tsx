@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownUp, Archive, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '../api/client';
-import type { Category, Movement, Paged, Product } from '../api/types';
+import type { Category, Movement, Paged, Product, ProductStock } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { PageHead } from '../components/Layout';
 import ProductForm from '../components/ProductForm';
 import MovementForm, { canRecordMovements } from '../components/MovementForm';
-import { Bin, MovementBadge, QtyChange, ShelfLabel, StatusBadge, StockGauge } from '../components/inventory';
+import { Bin, MovementBadge, QtyChange, ShelfLabel, StatusBadge, StockGauge, WarehouseChip } from '../components/inventory';
 import { ConfirmDialog, Drawer, EmptyState, ErrorState, Pagination, SkeletonRows, useToast } from '../components/ui';
 import { fmt } from '../lib/format';
 import { t, type TKey } from '../i18n';
@@ -32,10 +33,15 @@ function ProductDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
   const [recording, setRecording] = useState(false);
   const [confirm, setConfirm] = useState(false);
 
-  const product = useQuery({ queryKey: ['products', 'one', id], queryFn: () => api.get<Product>(`/api/products/${id}`) });
+  const wh = useWarehouse();
+  const product = useQuery({
+    queryKey: ['products', 'one', id, wh.param],
+    queryFn: () => api.get<Product>(`/api/products/${id}`, { warehouseId: wh.param }),
+  });
+  const split = useQuery({ queryKey: ['products', 'stock', id], queryFn: () => api.get<ProductStock[]>(`/api/products/${id}/stock`) });
   const history = useQuery({
-    queryKey: ['movements', 'product', id],
-    queryFn: () => api.get<Paged<Movement>>('/api/movements', { productId: id, pageSize: 12 }),
+    queryKey: ['movements', 'product', id, wh.param],
+    queryFn: () => api.get<Paged<Movement>>('/api/movements', { productId: id, pageSize: 12, warehouseId: wh.param }),
     enabled: can(P.movementsView),
   });
 
@@ -82,6 +88,21 @@ function ProductDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
 
             <StockGauge quantity={p.quantity} reorderLevel={p.reorderLevel} unit={p.unit} />
 
+            {split.data && split.data.length > 1 && (
+              <div>
+                <h3 style={{ marginBottom: 10 }}>{t('wh.stockTitle')}</h3>
+                <ul className="stock-split">
+                  {split.data.map((s) => (
+                    <li key={s.warehouseId} className={s.quantity === 0 ? 'zero' : undefined}>
+                      <WarehouseChip code={s.warehouseCode} />
+                      <span>{s.warehouseName}</span>
+                      <span><strong className="num">{fmt.int(s.quantity)}</strong> {p.unit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="kv">
               <div><span>{t('prod.cost')}</span><strong className="num">{fmt.money(p.costPrice)}</strong></div>
               <div><span>{t('prod.sale')}</span><strong className="num">{fmt.money(p.salePrice)}</strong></div>
@@ -97,7 +118,12 @@ function ProductDetail({ id, onClose, onEdit }: { id: number; onClose: () => voi
                       <li key={m.id}>
                         <MovementBadge type={m.type} />
                         <div style={{ minWidth: 0 }}>
-                          <div>{m.party ?? m.note ?? '—'}</div>
+                          <div>
+                            {!wh.param && <><WarehouseChip code={m.warehouseCode} title={m.warehouseName} />{' '}</>}
+                            {m.counterpartWarehouseCode
+                              ? t(m.type === 'TransferOut' ? 'mv.transferTo' : 'mv.transferFrom', { code: m.counterpartWarehouseCode })
+                              : m.party ?? m.note ?? '—'}
+                          </div>
                           <div className="muted" style={{ fontSize: 12.5 }}>{fmt.dateTime(m.occurredAt)}{t('common.sep')}{m.createdBy}</div>
                         </div>
                         <div style={{ textAlign: 'end' }}>
@@ -142,14 +168,16 @@ export default function ProductsPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const status = params.get('status') ?? '';
+  const wh = useWarehouse();
 
-  useEffect(() => setPage(1), [q, categoryId, status, sort, archived]);
+  useEffect(() => setPage(1), [q, categoryId, status, sort, archived, wh.param]);
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/api/categories') });
   const list = useQuery({
-    queryKey: ['products', { q, categoryId, status, sort, page, archived }],
+    queryKey: ['products', { q, categoryId, status, sort, page, archived, w: wh.param }],
     queryFn: () => api.get<Paged<Product>>('/api/products', {
       search: q, categoryId: categoryId || undefined, status, sort, page, pageSize: 15, includeInactive: archived,
+      warehouseId: wh.param,
     }),
     placeholderData: keepPreviousData,
   });
@@ -165,7 +193,7 @@ export default function ProductsPage() {
     <>
       <PageHead
         title={t('prod.title')}
-        subtitle={list.data ? t('prod.count', { n: fmt.int(list.data.total) }) : ' '}
+        subtitle={list.data ? `${t('prod.count', { n: fmt.int(list.data.total) })}${t('common.sep')}${wh.selected?.name ?? t('wh.all')}` : ' '}
         actions={can(P.productsManage) && (
           <button className="btn btn-primary" onClick={() => setEditing('new')}><Plus size={18} /> {t('prod.new')}</button>
         )}
@@ -195,7 +223,7 @@ export default function ProductsPage() {
         </div>
 
         <div className="table-wrap">
-          <table className="data">
+          <table className="data" aria-busy={list.isFetching}>
             <thead>
               <tr>
                 <SortTh k="sku">{t('prod.col.sku')}</SortTh>

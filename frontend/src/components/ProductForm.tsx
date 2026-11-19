@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Wand2 } from 'lucide-react';
 import { api, ApiError } from '../api/client';
@@ -6,6 +6,7 @@ import type { Category, Product, ProductInput } from '../api/types';
 import { fmt } from '../lib/format';
 import { getLang, t } from '../i18n';
 import { Drawer, Field, FormError, useToast } from './ui';
+import { useWarehouse } from '../auth/WarehouseContext';
 
 const UNITS = {
   ar: ['قطعة', 'علبة', 'كرتونة', 'طقم', 'لفة', 'سطل', 'كيس', 'متر', 'كغ', 'لتر'],
@@ -23,6 +24,9 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
   const toast = useToast();
   const qc = useQueryClient();
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/api/categories') });
+  const wh = useWarehouse();
+  const [openingWarehouseId, setOpeningWarehouseId] = useState<number>(wh.defaultId ?? 0);
+  useEffect(() => { if (!openingWarehouseId && wh.defaultId) setOpeningWarehouseId(wh.defaultId); }, [openingWarehouseId, wh.defaultId]);
 
   const [form, setForm] = useState<ProductInput>({
     sku: product?.sku ?? '',
@@ -66,6 +70,7 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['categories'] });
+      qc.invalidateQueries({ queryKey: ['warehouses'] });
       toast(isEdit ? t('pf.saved', { name: p.name }) : t('pf.added', { name: p.name }));
       onClose();
     },
@@ -85,6 +90,7 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
       salePrice: Number(nums.salePrice || 0),
       reorderLevel: Number(nums.reorderLevel || 0),
       openingQuantity: Number(nums.openingQuantity || 0),
+      openingWarehouseId: openingWarehouseId || null,
     };
     const e: Record<string, string> = {};
     if (!body.name) e.name = t('pf.err.name');
@@ -178,6 +184,12 @@ export default function ProductForm({ product, onClose }: { product?: Product; o
         <div className="grid-2">
           <Field label={t('pf.opening')} hint={t('pf.openingHint')}>
             <input className="input" inputMode="numeric" value={nums.openingQuantity} onChange={(e) => setNum('openingQuantity', e.target.value)} />
+          </Field>
+          <Field label={t('pf.openingWarehouse')}>
+            <select className="select" value={openingWarehouseId} disabled={wh.locked}
+              onChange={(e) => setOpeningWarehouseId(Number(e.target.value))}>
+              {wh.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+            </select>
           </Field>
         </div>
       )}

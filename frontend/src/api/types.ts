@@ -1,4 +1,4 @@
-export type MovementType = 'In' | 'Out' | 'Adjustment';
+export type MovementType = 'In' | 'Out' | 'Adjustment' | 'TransferOut' | 'TransferIn';
 export type StockStatus = 'Ok' | 'Low' | 'Out';
 
 export interface Paged<T> {
@@ -14,6 +14,8 @@ export interface CurrentUser {
   username: string;
   role: string;
   permissions: string[];
+  warehouseId?: number | null;
+  warehouseName?: string | null;
 }
 
 export interface LoginResponse {
@@ -59,6 +61,26 @@ export interface ProductInput {
   reorderLevel: number;
   isActive: boolean;
   openingQuantity: number;
+  openingWarehouseId?: number | null;
+}
+
+export interface ProductStock {
+  warehouseId: number;
+  warehouseCode: string;
+  warehouseName: string;
+  quantity: number;
+}
+
+export interface Warehouse {
+  id: number;
+  code: string;
+  name: string;
+  address: string | null;
+  isActive: boolean;
+  products: number;
+  units: number;
+  stockValue: number;
+  users: number;
 }
 
 export interface Movement {
@@ -77,6 +99,12 @@ export interface Movement {
   note: string | null;
   occurredAt: string;
   createdBy: string;
+  warehouseId: number;
+  warehouseCode: string;
+  warehouseName: string;
+  counterpartWarehouseId: number | null;
+  counterpartWarehouseCode: string | null;
+  transferId: string | null;
 }
 
 export interface MovementInput {
@@ -88,6 +116,8 @@ export interface MovementInput {
   reference: string | null;
   note: string | null;
   occurredAt: string | null;
+  warehouseId: number;
+  toWarehouseId?: number | null;
 }
 
 export interface DashboardSummary {
@@ -157,6 +187,8 @@ export interface UserRow {
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
+  warehouseId?: number | null;
+  warehouseName?: string | null;
 }
 
 export interface Role {

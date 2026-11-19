@@ -10,7 +10,7 @@ export async function openApp(page: Page, opts: { lang?: 'ar' | 'en'; theme?: 's
 }
 
 /** Sign in through one of the demo-account buttons on the login page. */
-export async function signInAs(page: Page, role: 'System admin' | 'Warehouse manager' | 'Storekeeper' | 'Auditor (read-only)') {
-  await page.getByRole('button', { name: new RegExp(role.replace(/[()]/g, '\\$&')) }).click();
+export async function signInAs(page: Page, role: 'System admin' | 'Warehouse manager' | 'Storekeeper' | 'Aleppo storekeeper' | 'Auditor (read-only)') {
+  await page.getByRole('button', { name: new RegExp('^' + role.replace(/[()]/g, '\\$&')) }).click();
   await page.getByRole('heading', { level: 1 }).waitFor();
 }

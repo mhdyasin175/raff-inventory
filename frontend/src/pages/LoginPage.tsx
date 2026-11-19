@@ -11,6 +11,7 @@ const DEMO_ACCOUNTS: { username: string; password: string; role: TKey }[] = [
   { username: 'admin', password: 'Admin@123', role: 'login.role.admin' },
   { username: 'manager', password: 'Manager@123', role: 'login.role.manager' },
   { username: 'keeper', password: 'Keeper@123', role: 'login.role.keeper' },
+  { username: 'aleppo', password: 'Aleppo@123', role: 'login.role.aleppo' },
   { username: 'viewer', password: 'Viewer@123', role: 'login.role.viewer' },
 ];
 

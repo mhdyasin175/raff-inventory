@@ -9,6 +9,7 @@ import FlowChart from '../components/FlowChart';
 import { EmptyState, ErrorState, useToast } from '../components/ui';
 import { daysAgo, fmt, toDayString } from '../lib/format';
 import { useChartColors } from '../lib/chartColors';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { t, type TKey } from '../i18n';
 
 const PRESETS: { key: string; label: TKey; from: () => string }[] = [
@@ -53,12 +54,13 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(daysAgo(29));
   const [to, setTo] = useState(toDayString(new Date()));
   const [by, setBy] = useState<'revenue' | 'units'>('revenue');
-  const range = { from, to, tz: tzOffset() };
+  const wh = useWarehouse();
+  const range = { from, to, tz: tzOffset(), warehouseId: wh.param };
 
   const summary = useQuery({ queryKey: ['reports', 'summary', range], queryFn: () => api.get<RangeSummary>('/api/reports/summary', range) });
   const trend = useQuery({ queryKey: ['reports', 'trend', range], queryFn: () => api.get<TrendPoint[]>('/api/reports/trend', range) });
   const top = useQuery({ queryKey: ['reports', 'top', range, by], queryFn: () => api.get<TopProductPoint[]>('/api/reports/top-products', { ...range, by, take: 8 }) });
-  const cats = useQuery({ queryKey: ['reports', 'categories'], queryFn: () => api.get<CategoryValuePoint[]>('/api/reports/category-value') });
+  const cats = useQuery({ queryKey: ['reports', 'categories', wh.param], queryFn: () => api.get<CategoryValuePoint[]>('/api/reports/category-value', { warehouseId: wh.param }) });
 
   function applyPreset(key: string) {
     const p = PRESETS.find((x) => x.key === key)!;
@@ -77,7 +79,7 @@ export default function ReportsPage() {
     <>
       <PageHead
         title={t('rep.title')}
-        subtitle={t('rep.subtitle')}
+        subtitle={`${t('rep.subtitle')} ${wh.selected?.name ?? t('wh.all')}.`}
         actions={<button className="btn" onClick={exportCsv}><Download size={17} /> {t('rep.export')}</button>}
       />
 

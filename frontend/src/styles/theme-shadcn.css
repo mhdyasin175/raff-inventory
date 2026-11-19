@@ -273,3 +273,13 @@
 [data-theme='shadcn'] .demo-accounts p { border-color: var(--rule); }
 [data-theme='shadcn'] .demo-accounts button { border-color: #f4f4f5; }
 [data-theme='shadcn'] .demo-accounts button:hover { background: #fafafa; }
+
+[data-theme='shadcn'] { --trf: #7c3aed; --trf-soft: #f5f3ff; }
+[data-theme='shadcn'] .badge-trf svg { color: var(--trf); }
+[data-theme='shadcn'] .feed-icon.trf { color: var(--trf); background: var(--trf-soft); }
+[data-theme='shadcn'] .wh-chip { background: #f4f4f5; color: var(--ink); border: 1px solid var(--rule); font-family: var(--font-code); }
+[data-theme='shadcn'] .wh-switch label { color: var(--steel); }
+[data-theme='shadcn'] .wh-switch .select { background-color: #fff; border-color: var(--rule); color: var(--ink); }
+[data-theme='shadcn'] .wh-switch .locked { background: #fff; border: 1px solid var(--rule); color: var(--ink); }
+[data-theme='shadcn'] .wh-switch { margin: 0 8px 14px; }
+[data-theme='shadcn'] .stock-split { border-color: var(--rule); }

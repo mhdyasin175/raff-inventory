@@ -19,7 +19,8 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> hasher) : Co
     public async Task<List<UserDto>> GetAll() =>
         await db.Users.AsNoTracking()
             .OrderByDescending(u => u.IsActive).ThenBy(u => u.FullName)
-            .Select(u => new UserDto(u.Id, u.FullName, u.Username, u.RoleId, u.Role.Name, u.IsActive, u.CreatedAt, u.LastLoginAt))
+            .Select(u => new UserDto(u.Id, u.FullName, u.Username, u.RoleId, u.Role.Name, u.IsActive, u.CreatedAt, u.LastLoginAt,
+                u.WarehouseId, u.Warehouse != null ? u.Warehouse.Name : null))
             .ToListAsync();
 
     [HttpPost]
@@ -30,12 +31,14 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> hasher) : Co
             throw AppException.Conflict(Msg.T("اسم المستخدم محجوز", "That username is taken"));
         var role = await db.Roles.FindAsync(input.RoleId) ?? throw AppException.NotFound("الدور", "Role");
 
-        var user = new User { FullName = input.FullName.Trim(), Username = username, RoleId = role.Id };
+        var warehouse = await WarehouseOrNull(input.WarehouseId);
+        var user = new User { FullName = input.FullName.Trim(), Username = username, RoleId = role.Id, WarehouseId = warehouse?.Id };
         user.PasswordHash = hasher.HashPassword(user, input.Password);
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        return new UserDto(user.Id, user.FullName, user.Username, role.Id, role.Name, true, user.CreatedAt, null);
+        return new UserDto(user.Id, user.FullName, user.Username, role.Id, role.Name, true, user.CreatedAt, null,
+            warehouse?.Id, warehouse?.Name);
     }
 
     [HttpPut("{id:int}")]
@@ -59,10 +62,19 @@ public class UsersController(AppDbContext db, IPasswordHasher<User> hasher) : Co
         user.FullName = input.FullName.Trim();
         user.Role = role;
         user.IsActive = input.IsActive;
+        user.WarehouseId = (await WarehouseOrNull(input.WarehouseId))?.Id;
         if (!string.IsNullOrWhiteSpace(input.NewPassword))
             user.PasswordHash = hasher.HashPassword(user, input.NewPassword);
 
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task<Warehouse?> WarehouseOrNull(int? id)
+    {
+        if (id is not > 0) return null;
+        var w = await db.Warehouses.FindAsync(id.Value) ?? throw AppException.NotFound("المستودع", "Warehouse");
+        if (!w.IsActive) throw new AppException(Msg.T("المستودع المختار موقوف", "The selected warehouse is deactivated"));
+        return w;
     }
 }

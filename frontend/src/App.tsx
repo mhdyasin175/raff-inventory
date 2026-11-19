@@ -14,6 +14,7 @@ const CategoriesPage = lazy(() => import('./pages/CategoriesPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const RolesPage = lazy(() => import('./pages/RolesPage'));
+const WarehousesPage = lazy(() => import('./pages/WarehousesPage'));
 
 function Guard({ perm, children }: { perm: string; children: React.ReactElement }) {
   const { can } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="movements" element={<Guard perm={P.movementsView}><MovementsPage /></Guard>} />
         <Route path="categories" element={<Guard perm={P.categories}><CategoriesPage /></Guard>} />
         <Route path="reports" element={<Guard perm={P.reports}><ReportsPage /></Guard>} />
+        <Route path="warehouses" element={<Guard perm={P.warehouses}><WarehousesPage /></Guard>} />
         <Route path="users" element={<Guard perm={P.users}><UsersPage /></Guard>} />
         <Route path="roles" element={<Guard perm={P.roles}><RolesPage /></Guard>} />
         <Route path="*" element={<Navigate to="/" replace />} />

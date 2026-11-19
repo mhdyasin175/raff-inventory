@@ -21,7 +21,7 @@ public class CategoriesController(AppDbContext db) : ControllerBase
             .OrderBy(c => c.Name)
             .Select(c => new CategoryDto(c.Id, c.Name, c.Description,
                 c.Products.Count(p => p.IsActive),
-                c.Products.Where(p => p.IsActive).Sum(p => (decimal?)p.Quantity * p.CostPrice) ?? 0))
+                c.Products.Where(p => p.IsActive).SelectMany(p => p.StockLevels).Sum(s => (decimal?)s.Quantity * s.Product.CostPrice) ?? 0))
             .ToListAsync();
 
     [HttpPost]

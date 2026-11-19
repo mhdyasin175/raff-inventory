@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, Scale } from 'lucide-react';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Scale } from 'lucide-react';
 import type { MovementType, StockStatus } from '../api/types';
 import { fmt } from '../lib/format';
 import { t } from '../i18n';
@@ -74,6 +74,8 @@ const TYPE_META: Record<MovementType, { cls: string; icon: typeof Scale }> = {
   In: { cls: 'in', icon: ArrowDownLeft },
   Out: { cls: 'out', icon: ArrowUpRight },
   Adjustment: { cls: 'adj', icon: Scale },
+  TransferOut: { cls: 'trf', icon: ArrowLeftRight },
+  TransferIn: { cls: 'trf', icon: ArrowLeftRight },
 };
 
 export const movementLabel = (type: MovementType) => t(`type.${type}`);
@@ -96,7 +98,7 @@ export function MovementIcon({ type }: { type: MovementType }) {
 }
 
 export function QtyChange({ type, value }: { type: MovementType; value: number }) {
-  const cls = type === 'In' ? 'qty-in' : type === 'Out' ? 'qty-out' : 'qty-adj';
+  const cls = type === 'In' ? 'qty-in' : type === 'Out' ? 'qty-out' : type === 'Adjustment' ? 'qty-adj' : 'qty-trf';
   return <span className={`num ${cls}`}>{fmt.signed(value)}</span>;
 }
 
@@ -105,4 +107,9 @@ export function StatusBadge({ status, active = true }: { status: StockStatus; ac
   if (status === 'Out') return <span className="badge badge-none">{t('inv.status.out')}</span>;
   if (status === 'Low') return <span className="badge badge-low">{t('inv.status.low')}</span>;
   return <span className="badge badge-ok">{t('inv.status.ok')}</span>;
+}
+
+/** Small code chip for a warehouse (e.g. MAIN, ALP). */
+export function WarehouseChip({ code, title }: { code: string; title?: string }) {
+  return <span className="wh-chip" title={title}>{code}</span>;
 }

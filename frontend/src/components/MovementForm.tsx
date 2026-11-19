@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownLeft, ArrowUpRight, Info, Scale } from 'lucide-react';
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Info, Scale } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { Movement, MovementInput, MovementType, Paged, Product } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { fmt } from '../lib/format';
 import { t, type TKey } from '../i18n';
 import { Field, FormError, Modal, useToast } from './ui';
@@ -13,6 +14,7 @@ const TYPES: { type: MovementType; perm: string; label: TKey; icon: typeof Scale
   { type: 'In', perm: P.movementsIn, label: 'mf.in', icon: ArrowDownLeft },
   { type: 'Out', perm: P.movementsOut, label: 'mf.out', icon: ArrowUpRight },
   { type: 'Adjustment', perm: P.movementsAdjust, label: 'mf.adjust', icon: Scale },
+  { type: 'TransferOut', perm: P.movementsTransfer, label: 'mf.transfer', icon: ArrowLeftRight },
 ];
 
 function nowLocalInput() {
@@ -22,13 +24,14 @@ function nowLocalInput() {
 }
 
 export function canRecordMovements(can: (...p: string[]) => boolean) {
-  return can(P.movementsIn, P.movementsOut, P.movementsAdjust);
+  return can(P.movementsIn, P.movementsOut, P.movementsAdjust, P.movementsTransfer);
 }
 
 export default function MovementForm({ onClose, productId, initialType }: {
   onClose: () => void; productId?: number; initialType?: MovementType;
 }) {
   const { can } = useAuth();
+  const wh = useWarehouse();
   const toast = useToast();
   const qc = useQueryClient();
   const allowed = TYPES.filter((t) => can(t.perm));
@@ -37,6 +40,18 @@ export default function MovementForm({ onClose, productId, initialType }: {
     initialType && allowed.some((t) => t.type === initialType) ? initialType : allowed[0]?.type ?? 'In',
   );
   const [pid, setPid] = useState<number>(productId ?? 0);
+  const [warehouseId, setWarehouseId] = useState<number>(wh.defaultId ?? 0);
+  const [toWarehouseId, setToWarehouseId] = useState<number>(0);
+  const isTransfer = type === 'TransferOut';
+  // The warehouse list may still be loading when the form opens: pick the default once it arrives.
+  useEffect(() => { if (!warehouseId && wh.defaultId) setWarehouseId(wh.defaultId); }, [warehouseId, wh.defaultId]);
+
+  // Destinations: every active warehouse (a user limited to one warehouse may still send stock elsewhere).
+  const allWarehouses = useQuery({
+    queryKey: ['warehouses', 'options'],
+    queryFn: () => api.get<{ id: number; code: string; name: string }[]>('/api/warehouses/options'),
+    enabled: isTransfer,
+  });
   const [quantity, setQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [party, setParty] = useState('');
@@ -47,8 +62,11 @@ export default function MovementForm({ onClose, productId, initialType }: {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const products = useQuery({
-    queryKey: ['products', 'picker'],
-    queryFn: () => api.get<Paged<Product>>('/api/products', { pageSize: 200, sort: 'name' }),
+    // Quantities are those of the chosen (source) warehouse.
+    queryKey: ['products', 'picker', warehouseId],
+    queryFn: () => api.get<Paged<Product>>('/api/products', { pageSize: 200, sort: 'name', warehouseId: warehouseId || undefined }),
+    enabled: warehouseId > 0,
+    placeholderData: (prev) => prev,
   });
 
   const grouped = useMemo(() => {
@@ -62,7 +80,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
   const validQty = quantity !== '' && Number.isInteger(qty) && qty >= 0;
   const after = !product || !validQty ? null
     : type === 'In' ? product.quantity + qty
-    : type === 'Out' ? product.quantity - qty
+    : type === 'Out' || type === 'TransferOut' ? product.quantity - qty
     : qty;
 
   const save = useMutation({
@@ -73,6 +91,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({ queryKey: ['categories'] });
+      qc.invalidateQueries({ queryKey: ['warehouses'] });
       toast(t(`mf.done.${m.type}`, { q: fmt.int(Math.abs(m.quantityChange)), unit: m.unit, name: m.productName }));
       onClose();
     },
@@ -87,8 +106,10 @@ export default function MovementForm({ onClose, productId, initialType }: {
   function submit() {
     const errs: Record<string, string> = {};
     if (!pid) errs.productId = t('mf.err.product');
+    if (!warehouseId) errs.warehouseId = t('mf.err.warehouse');
+    if (isTransfer && (!toWarehouseId || toWarehouseId === warehouseId)) errs.toWarehouseId = t('mf.err.to');
     if (!validQty || (type !== 'Adjustment' && qty === 0)) errs.quantity = t('mf.err.qty');
-    if (type === 'Out' && product && validQty && qty > product.quantity)
+    if ((type === 'Out' || isTransfer) && product && validQty && qty > product.quantity)
       errs.quantity = t('mf.err.available', { q: fmt.int(product.quantity), unit: product.unit });
     if (type === 'Adjustment' && product && validQty && qty === product.quantity)
       errs.quantity = t('mf.err.same');
@@ -102,6 +123,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
       unitPrice: unitPrice === '' ? null : Number(unitPrice),
       party: party || null, reference: reference || null, note: note || null,
       occurredAt: occurredAt ? new Date(occurredAt).toISOString() : null,
+      warehouseId, toWarehouseId: isTransfer ? toWarehouseId : null,
     });
   }
 
@@ -138,6 +160,34 @@ export default function MovementForm({ onClose, productId, initialType }: {
         ))}
       </div>
 
+      {isTransfer ? (
+        <div className="grid-2">
+          <Field label={t('mf.from')} error={fieldErrors.warehouseId}>
+            <select className="select" value={warehouseId} disabled={wh.locked}
+              onChange={(e) => setWarehouseId(Number(e.target.value))}>
+              <option value={0}>{t('mf.pickWarehouse')}</option>
+              {wh.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+            </select>
+          </Field>
+          <Field label={t('mf.to')} error={fieldErrors.toWarehouseId}>
+            <select className="select" value={toWarehouseId} onChange={(e) => setToWarehouseId(Number(e.target.value))}
+              aria-invalid={!!fieldErrors.toWarehouseId}>
+              <option value={0}>{t('mf.pickWarehouse')}</option>
+              {(allWarehouses.data ?? []).filter((w) => w.id !== warehouseId)
+                .map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+            </select>
+          </Field>
+        </div>
+      ) : (
+        <Field label={t('mf.warehouse')} error={fieldErrors.warehouseId}>
+          <select className="select" value={warehouseId} disabled={wh.locked}
+            onChange={(e) => setWarehouseId(Number(e.target.value))}>
+            <option value={0}>{t('mf.pickWarehouse')}</option>
+            {wh.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+          </select>
+        </Field>
+      )}
+
       <Field label={t('mf.product')} error={fieldErrors.productId}>
         <select className="select" value={pid} onChange={(e) => setPid(Number(e.target.value))}
           aria-invalid={!!fieldErrors.productId} disabled={products.isLoading}>
@@ -170,7 +220,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
           <input className="input" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/[^\d]/g, ''))}
             aria-invalid={!!fieldErrors.quantity} />
         </Field>
-        {type !== 'Adjustment' && (
+        {type !== 'Adjustment' && !isTransfer && (
           <Field label={t('mf.price')} hint={defaultPrice !== null ? t('mf.priceHint', { p: fmt.money(defaultPrice) }) : undefined}>
             <input className="input" inputMode="decimal" value={unitPrice}
               onChange={(e) => setUnitPrice(e.target.value.replace(/[^\d.]/g, ''))} placeholder={defaultPrice?.toFixed(2)} />
@@ -178,7 +228,7 @@ export default function MovementForm({ onClose, productId, initialType }: {
         )}
       </div>
 
-      {type !== 'Adjustment' && (
+      {(type === 'In' || type === 'Out') && (
         <div className="grid-2">
           <Field label={type === 'In' ? t('mf.supplier') : t('mf.customer')}>
             <input className="input" value={party} onChange={(e) => setParty(e.target.value)} maxLength={150} />
@@ -205,6 +255,11 @@ export default function MovementForm({ onClose, productId, initialType }: {
       {type === 'Adjustment' && (
         <div className="form-note"><Info size={16} style={{ flex: 'none', marginTop: 3 }} />
           {t('mf.adjustNote')}
+        </div>
+      )}
+      {isTransfer && (
+        <div className="form-note"><Info size={16} style={{ flex: 'none', marginTop: 3 }} />
+          {t('mf.transferNote')}
         </div>
       )}
     </Modal>

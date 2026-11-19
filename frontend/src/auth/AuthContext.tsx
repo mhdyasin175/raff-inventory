@@ -12,6 +12,8 @@ export const P = {
   movementsIn: 'movements.in',
   movementsOut: 'movements.out',
   movementsAdjust: 'movements.adjust',
+  movementsTransfer: 'movements.transfer',
+  warehouses: 'warehouses.manage',
   reports: 'reports.view',
   users: 'users.manage',
   roles: 'roles.manage',

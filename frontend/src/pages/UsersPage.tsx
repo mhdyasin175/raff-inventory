@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus } from 'lucide-react';
 import { api, ApiError } from '../api/client';
-import type { Role, UserRow } from '../api/types';
+import type { Role, UserRow, Warehouse } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/Layout';
 import { EmptyState, ErrorState, Field, FormError, Modal, SkeletonRows, useToast } from '../components/ui';
 import { fmt, relativeTime } from '../lib/format';
 import { t } from '../i18n';
 
-function UserForm({ user, roles, onClose }: { user?: UserRow; roles: Role[]; onClose: () => void }) {
+function UserForm({ user, roles, warehouses, onClose }: { user?: UserRow; roles: Role[]; warehouses: Warehouse[]; onClose: () => void }) {
   const isEdit = !!user;
   const toast = useToast();
   const qc = useQueryClient();
@@ -18,13 +18,14 @@ function UserForm({ user, roles, onClose }: { user?: UserRow; roles: Role[]; onC
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState(user?.roleId ?? roles.find((r) => !r.isSystem)?.id ?? 0);
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
+  const [warehouseId, setWarehouseId] = useState<number>(user?.warehouseId ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const save = useMutation({
     mutationFn: () => isEdit
-      ? api.put(`/api/users/${user!.id}`, { fullName, roleId, isActive, newPassword: password || null })
-      : api.post('/api/users', { fullName, username, password, roleId }),
+      ? api.put(`/api/users/${user!.id}`, { fullName, roleId, isActive, newPassword: password || null, warehouseId: warehouseId || null })
+      : api.post('/api/users', { fullName, username, password, roleId, warehouseId: warehouseId || null }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['roles'] });
@@ -79,6 +80,13 @@ function UserForm({ user, roles, onClose }: { user?: UserRow; roles: Role[]; onC
           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
       </Field>
+      <Field label={t('usr.warehouse')} hint={t('usr.warehouseHint')}>
+        <select className="select" value={warehouseId} onChange={(e) => setWarehouseId(Number(e.target.value))}>
+          <option value={0}>{t('usr.allWarehouses')}</option>
+          {warehouses.filter((w) => w.isActive || w.id === warehouseId)
+            .map((w) => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+        </select>
+      </Field>
       {isEdit && (
         <label className="switch">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
@@ -94,6 +102,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<UserRow | 'new' | null>(null);
   const users = useQuery({ queryKey: ['users'], queryFn: () => api.get<UserRow[]>('/api/users') });
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api.get<Role[]>('/api/roles') });
+  const warehouses = useQuery({ queryKey: ['warehouses', 'manage', true], queryFn: () => api.get<Warehouse[]>('/api/warehouses', { includeInactive: true }) });
 
   return (
     <>
@@ -106,9 +115,9 @@ export default function UsersPage() {
         <div className="table-wrap">
           <table className="data">
             <thead>
-              <tr><th>{t('usr.col.name')}</th><th>{t('usr.col.username')}</th><th>{t('usr.col.role')}</th><th>{t('usr.col.status')}</th><th>{t('usr.col.lastLogin')}</th><th>{t('usr.col.created')}</th><th /></tr>
+              <tr><th>{t('usr.col.name')}</th><th>{t('usr.col.username')}</th><th>{t('usr.col.role')}</th><th>{t('usr.col.warehouse')}</th><th>{t('usr.col.status')}</th><th>{t('usr.col.lastLogin')}</th><th>{t('usr.col.created')}</th><th /></tr>
             </thead>
-            {users.isLoading ? <SkeletonRows cols={7} rows={4} /> : (
+            {users.isLoading ? <SkeletonRows cols={8} rows={4} /> : (
               <tbody>
                 {users.data?.map((u) => (
                   <tr key={u.id} className={u.isActive ? '' : 'inactive'}>
@@ -120,6 +129,7 @@ export default function UsersPage() {
                     </td>
                     <td><span className="num">{u.username}</span></td>
                     <td>{u.roleName}</td>
+                    <td className={u.warehouseName ? undefined : 'cell-sub'}>{u.warehouseName ?? t('usr.allWarehouses')}</td>
                     <td>{u.isActive ? <span className="badge badge-in">{t('usr.on')}</span> : <span className="badge badge-off">{t('usr.off')}</span>}</td>
                     <td className="cell-sub">{u.lastLoginAt ? relativeTime(u.lastLoginAt) : t('usr.never')}</td>
                     <td className="cell-sub">{fmt.date(u.createdAt)}</td>
@@ -139,7 +149,7 @@ export default function UsersPage() {
       </section>
 
       {editing && roles.data && (
-        <UserForm user={editing === 'new' ? undefined : editing} roles={roles.data} onClose={() => setEditing(null)} />
+        <UserForm user={editing === 'new' ? undefined : editing} roles={roles.data} warehouses={warehouses.data ?? []} onClose={() => setEditing(null)} />
       )}
     </>
   );

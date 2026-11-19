@@ -6,7 +6,7 @@
 **Live demo:** https://mhdyasin175.github.io/raff-inventory/ (runs entirely in your browser, no sign-up; pick any demo account)
 
 A full-stack warehouse/store management system built with **ASP.NET Core 10**, **React 19 + TypeScript** and **SQL Server**.
-It tracks products, records every stock-in, stock-out and stock-count adjustment, reports sales and profit, and controls access with editable role-based permissions.
+It tracks products, records every stock-in, stock-out and stock-count adjustment, reports sales and profit, and controls access with editable role-based permissions, across several warehouses.
 
 The interface is bilingual: **Arabic (RTL) and English (LTR)**, switchable from the account menu or the sign-in page. Each user can also pick one of three looks from the account menu (click your name at the bottom of the sidebar): **Raff**, a custom warehouse look with safety-yellow shelf labels; **shadcn**, which follows the shadcn/ui dashboard design (zinc palette, Geist font, inset sidebar); and **AdminLTE**, which follows the AdminLTE 3 admin template (dark sidebar, top navbar with breadcrumbs, coloured KPI boxes). The default is shadcn. The choice is saved in the browser and applied before the first paint, so the page never flashes the wrong look.
 
@@ -18,14 +18,15 @@ The interface is bilingual: **Arabic (RTL) and English (LTR)**, switchable from 
 |---|---|
 | **Dashboard** | Stock value (cost and sale), 30-day sales against the previous 30 days, units moved, a reorder alert, a diverging daily in/out chart, products below reorder level, latest movements and stock value per category. |
 | **Products** | Search, filter by category or stock status, sortable columns, pagination, and add/edit/archive. Each product has a SKU suggester, shelf location, cost and sale prices with margin, and a reorder level. |
+| **Warehouses** | A main warehouse and branches, each with its own stock. Transfers move stock between them in one step (both legs saved together). Every page can show one warehouse or all of them, and a user can be limited to a single warehouse (e.g. a branch storekeeper). |
 | **Stock movements** | Stock-in, stock-out and stock-count adjustment, plus a full audit log with the balance after each movement. Filter by type, date range or free text, and export to CSV (UTF-8 with BOM so Excel shows Arabic correctly). |
 | **Reports** | Any date range: revenue, gross profit and margin, purchases, daily value chart, top-selling products by value or quantity, and stock value per category. |
 | **Users & roles** | Create and deactivate users, reset passwords, and a role × permission matrix with 11 permissions that you edit live. |
 
 ### Tests
 
-- **API integration tests** (`backend/Raff.Api.Tests`, xUnit): the real API runs in memory against a **real SQL Server started in Docker** by Testcontainers. 26 test cases cover the stock rules (balances, no negative stock, stock counts need a reason, archive instead of delete), permissions per role, protections such as "the last admin can't be deactivated", report numbers (revenue, gross profit, category value, sorting), CSV export and message language.
-- **End-to-end tests** (`frontend/e2e`, Playwright): a real browser signs in with different roles, records a stock-in and checks the balance, checks that invalid movements are blocked, checks what each role can see, and switches language and look. They also run at phone size.
+- **API integration tests** (`backend/Raff.Api.Tests`, xUnit): the real API runs in memory against a **real SQL Server started in Docker** by Testcontainers. 36 test cases cover the stock rules (balances, no negative stock, stock counts need a reason, archive instead of delete), warehouses and transfers (both legs, per-warehouse availability, scoped users, transfers not counted as sales), permissions per role, protections such as "the last admin can't be deactivated", report numbers (revenue, gross profit, category value, sorting), CSV export and message language.
+- **End-to-end tests** (`frontend/e2e`, Playwright): a real browser signs in with different roles, records a stock-in and a transfer and checks the balances, checks that invalid movements are blocked, checks what each role and a branch-limited user can see, adds a warehouse, and switches language and look. They also run at phone size.
 - Both suites run in GitHub Actions on every push (see the CI badge above).
 
 ```bash
@@ -35,8 +36,10 @@ cd frontend && npx playwright install chromium && npm run test:e2e
 
 ### Engineering details worth noting
 - **Permission-based authorization.** Every permission is registered as an ASP.NET Core policy (`[Authorize(Policy = Permissions.ProductsManage)]`) and issued as a `perm` claim in the JWT. The React app hides navigation and actions with the same keys.
+- **Stock per warehouse.** On-hand quantity lives in a `StockLevel` row per product and warehouse (no duplicated totals). A transfer writes a `TransferOut` and a `TransferIn` linked by a `TransferId` in one `SaveChanges`, so stock can't leave one warehouse without arriving in the other. Transfers are excluded from sales and purchase figures.
+- **Warehouse-scoped users.** A user tied to a warehouse gets a `wh` claim in the JWT; every query is limited to it on the server, and asking for another warehouse returns 403.
 - **Stock can only change through movements.** On-hand quantity can't be edited directly. Every change is a `StockMovement` that stores the signed quantity, the resulting balance, the price, the user and the timestamp, so the history is a complete audit trail.
-- **Concurrency safety.** `Product.RowVersion` (SQL Server `rowversion`) makes two simultaneous stock-outs on the same item fail cleanly with HTTP 409 instead of corrupting the balance.
+- **Concurrency safety.** `StockLevel.RowVersion` (SQL Server `rowversion`) makes two simultaneous movements on the same stock fail cleanly with HTTP 409 instead of corrupting the balance.
 - **Business rules on the server.** You can't take out more than is on hand, a stock-count adjustment needs a reason, a product with history is archived instead of deleted, the last active admin can't be deactivated, and the system admin role always keeps every permission.
 - **Time zones.** All timestamps are stored in UTC and the API always returns them with `Z`. Reports take the client's UTC offset, so "today" and the daily buckets match the user's local day.
 - **Health check.** `/api/health` checks the database connection; Docker and CI use it to know when the API is ready.
@@ -139,7 +142,8 @@ npm run dev:demo         # or: npm run build:demo → static files in dist/
 |---|---|---|---|
 | مدير النظام (System admin) | `admin` | `Admin@123` | Everything |
 | مدير المخزن (Warehouse manager) | `manager` | `Manager@123` | Products, categories, all movements, reports |
-| أمين المخزن (Storekeeper) | `keeper` | `Keeper@123` | View products, record stock-in and stock-out |
+| أمين المخزن (Storekeeper) | `keeper` | `Keeper@123` | Stock in, out and transfers, limited to the main warehouse |
+| أمين مستودع حلب (Branch storekeeper) | `aleppo` | `Aleppo@123` | Same role, limited to the Aleppo branch |
 | مراجع (Auditor) | `viewer` | `Viewer@123` | Read-only and reports |
 
 ## API overview
@@ -151,10 +155,13 @@ npm run dev:demo         # or: npm run build:demo → static files in dist/
 | GET/POST/PUT/DELETE | `/api/products`, `/api/products/{id}`, `/api/products/next-sku` | `products.view` / `products.manage` |
 | GET/POST/PUT/DELETE | `/api/categories` | `products.view` / `categories.manage` |
 | GET | `/api/movements` | `movements.view` |
-| POST | `/api/movements` | `movements.in` / `movements.out` / `movements.adjust` (by type) |
+| POST | `/api/movements` | `movements.in` / `movements.out` / `movements.adjust` / `movements.transfer` (by type) |
 | GET | `/api/movements/export` | `reports.view` |
 | GET | `/api/dashboard/summary`, `trend`, `low-stock`, `recent` | `dashboard.view` |
 | GET | `/api/reports/summary`, `trend`, `top-products`, `category-value` | `reports.view` |
+| GET | `/api/warehouses`, `/api/warehouses/options` | signed in (limited users see their own) |
+| POST/PUT/DELETE | `/api/warehouses/{id}` | `warehouses.manage` |
+| GET | `/api/products/{id}/stock` | `products.view` |
 | GET/POST/PUT | `/api/users` | `users.manage` |
 | GET/POST/PUT/DELETE | `/api/roles`, `/api/roles/permissions` | `roles.manage` |
 

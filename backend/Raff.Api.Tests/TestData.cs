@@ -9,6 +9,9 @@ public static class TestData
 {
     private static int _counter;
 
+    /// <summary>Id of the seeded "MAIN" warehouse, set once by <see cref="ApiFixture"/>.</summary>
+    public static int MainWarehouseId { get; set; }
+
     public static string Unique(string prefix) => $"{prefix}{Interlocked.Increment(ref _counter):000}{Guid.NewGuid().ToString("N")[..5]}";
 
     public static async Task<CategoryDto> CreateCategory(HttpClient admin, string? name = null)
@@ -39,12 +42,26 @@ public static class TestData
     }
 
     public static Task<HttpResponseMessage> Move(
-        HttpClient client, int productId, MovementType type, int quantity, string? note = null, decimal? unitPrice = null) =>
+        HttpClient client, int productId, MovementType type, int quantity, string? note = null, decimal? unitPrice = null,
+        int? warehouseId = null, int? toWarehouseId = null) =>
         client.PostAsJsonAsync("/api/movements",
-            new MovementInput(productId, type, quantity, unitPrice, null, null, note, null), ApiFixture.Json);
+            new MovementInput(productId, type, quantity, unitPrice, null, null, note, null,
+                warehouseId ?? MainWarehouseId, toWarehouseId), ApiFixture.Json);
 
-    public static async Task<ProductDto> GetProduct(HttpClient client, int id) =>
-        (await client.GetFromJsonAsync<ProductDto>($"/api/products/{id}", ApiFixture.Json))!;
+    public static Task<HttpResponseMessage> Transfer(HttpClient client, int productId, int quantity, int from, int to) =>
+        Move(client, productId, MovementType.TransferOut, quantity, warehouseId: from, toWarehouseId: to);
+
+    public static async Task<ProductDto> GetProduct(HttpClient client, int id, int? warehouseId = null) =>
+        (await client.GetFromJsonAsync<ProductDto>(
+            $"/api/products/{id}{(warehouseId is null ? "" : $"?warehouseId={warehouseId}")}", ApiFixture.Json))!;
+
+    public static async Task<WarehouseDto> CreateWarehouse(HttpClient admin)
+    {
+        var code = Unique("W")[..8].ToUpperInvariant();
+        var res = await admin.PostAsJsonAsync("/api/warehouses", new WarehouseInput(code, Unique("Warehouse "), null), ApiFixture.Json);
+        res.EnsureSuccessStatusCode();
+        return (await res.Content.ReadFromJsonAsync<WarehouseDto>(ApiFixture.Json))!;
+    }
 
     public static async Task<string?> ErrorTitle(HttpResponseMessage res)
     {

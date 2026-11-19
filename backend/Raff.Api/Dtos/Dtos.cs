@@ -10,7 +10,8 @@ public record LoginRequest(
     [Required(ErrorMessage = "اسم المستخدم مطلوب")] string Username,
     [Required(ErrorMessage = "كلمة المرور مطلوبة")] string Password);
 
-public record CurrentUserDto(int Id, string FullName, string Username, string Role, IReadOnlyList<string> Permissions);
+public record CurrentUserDto(int Id, string FullName, string Username, string Role, IReadOnlyList<string> Permissions,
+    int? WarehouseId = null, string? WarehouseName = null);
 
 public record LoginResponse(string Token, DateTime ExpiresAt, CurrentUserDto User);
 
@@ -39,17 +40,25 @@ public record ProductInput(
     [Range(0, 1_000_000, ErrorMessage = "سعر البيع غير صالح")] decimal SalePrice,
     [Range(0, 1_000_000, ErrorMessage = "حد إعادة الطلب غير صالح")] int ReorderLevel,
     bool IsActive = true,
-    [Range(0, 1_000_000, ErrorMessage = "الكمية الافتتاحية غير صالحة")] int OpeningQuantity = 0);
+    [Range(0, 1_000_000, ErrorMessage = "الكمية الافتتاحية غير صالحة")] int OpeningQuantity = 0,
+    int? OpeningWarehouseId = null);
+
+/// <summary>A product's on-hand quantity in one warehouse.</summary>
+public record ProductStockDto(int WarehouseId, string WarehouseCode, string WarehouseName, int Quantity);
 
 // ---------- Movements ----------
 public record MovementDto(
     long Id, int ProductId, string ProductName, string Sku, string Unit, MovementType Type,
     int QuantityChange, int BalanceAfter, decimal UnitPrice, decimal Total,
-    string? Party, string? Reference, string? Note, DateTime OccurredAt, string CreatedBy);
+    string? Party, string? Reference, string? Note, DateTime OccurredAt, string CreatedBy,
+    int WarehouseId, string WarehouseCode, string WarehouseName,
+    int? CounterpartWarehouseId, string? CounterpartWarehouseCode, Guid? TransferId);
 
 /// <summary>
-/// For In/Out, Quantity is how many units entered/left.
+/// For In/Out, Quantity is how many units entered/left <see cref="WarehouseId"/>.
 /// For Adjustment, Quantity is the physically counted quantity; the system records the difference.
+/// For a transfer, send Type = TransferOut with the source in WarehouseId and the destination in
+/// ToWarehouseId; the API records both legs (TransferOut + TransferIn) together.
 /// </summary>
 public record MovementInput(
     [Range(1, int.MaxValue, ErrorMessage = "اختر المنتج")] int ProductId,
@@ -59,7 +68,9 @@ public record MovementInput(
     [MaxLength(150)] string? Party,
     [MaxLength(60)] string? Reference,
     [MaxLength(500)] string? Note,
-    DateTime? OccurredAt);
+    DateTime? OccurredAt,
+    int WarehouseId = 0,
+    int? ToWarehouseId = null);
 
 // ---------- Dashboard / reports ----------
 public record DashboardSummary(
@@ -76,22 +87,37 @@ public record TopProductPoint(int ProductId, string Sku, string Name, string Uni
 
 public record LowStockItem(int ProductId, string Sku, string Name, string Unit, int Quantity, int ReorderLevel, string? Location);
 
+// ---------- Warehouses ----------
+public record WarehouseDto(int Id, string Code, string Name, string? Address, bool IsActive,
+    int Products, int Units, decimal StockValue, int Users);
+
+public record WarehouseOption(int Id, string Code, string Name);
+
+public record WarehouseInput(
+    [Required(ErrorMessage = "رمز المستودع مطلوب"), MaxLength(10),
+     RegularExpression("^[A-Za-z0-9-]{2,10}$", ErrorMessage = "الرمز: أحرف إنجليزية وأرقام (2 إلى 10)")] string Code,
+    [Required(ErrorMessage = "اسم المستودع مطلوب"), MaxLength(100)] string Name,
+    [MaxLength(200)] string? Address,
+    bool IsActive = true);
+
 // ---------- Users & roles ----------
 public record UserDto(int Id, string FullName, string Username, int RoleId, string RoleName,
-    bool IsActive, DateTime CreatedAt, DateTime? LastLoginAt);
+    bool IsActive, DateTime CreatedAt, DateTime? LastLoginAt, int? WarehouseId = null, string? WarehouseName = null);
 
 public record UserCreate(
     [Required(ErrorMessage = "الاسم الكامل مطلوب"), MaxLength(120)] string FullName,
     [Required(ErrorMessage = "اسم المستخدم مطلوب"), MaxLength(60),
                RegularExpression("^[a-zA-Z0-9._-]{3,60}$", ErrorMessage = "اسم المستخدم: أحرف إنجليزية وأرقام فقط (3 أحرف على الأقل)")] string Username,
     [Required(ErrorMessage = "كلمة المرور مطلوبة"), MinLength(8, ErrorMessage = "كلمة المرور 8 أحرف على الأقل")] string Password,
-    [Range(1, int.MaxValue, ErrorMessage = "اختر الدور")] int RoleId);
+    [Range(1, int.MaxValue, ErrorMessage = "اختر الدور")] int RoleId,
+    int? WarehouseId = null);
 
 public record UserUpdate(
     [Required(ErrorMessage = "الاسم الكامل مطلوب"), MaxLength(120)] string FullName,
     [Range(1, int.MaxValue, ErrorMessage = "اختر الدور")] int RoleId,
     bool IsActive,
-    [MinLength(8, ErrorMessage = "كلمة المرور 8 أحرف على الأقل")] string? NewPassword);
+    [MinLength(8, ErrorMessage = "كلمة المرور 8 أحرف على الأقل")] string? NewPassword,
+    int? WarehouseId = null);
 
 public record RoleDto(int Id, string Name, string? Description, bool IsSystem, int UserCount, IReadOnlyList<string> Permissions);
 

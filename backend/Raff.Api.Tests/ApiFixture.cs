@@ -38,6 +38,11 @@ public sealed class ApiFixture : IAsyncLifetime
 
         Factory = new WebApplicationFactory<Program>();
         _ = Factory.Server; // boot the app now so the schema and seed users exist before the first test
+
+        // The seeded main warehouse is the default target of TestData.Move.
+        var admin = await ClientFor("admin");
+        var warehouses = await admin.GetFromJsonAsync<List<WarehouseDto>>("/api/warehouses", Json);
+        TestData.MainWarehouseId = warehouses!.Single(w => w.Code == "MAIN").Id;
     }
 
     public async Task DisposeAsync()

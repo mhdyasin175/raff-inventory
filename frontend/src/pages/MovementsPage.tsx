@@ -4,24 +4,28 @@ import { Download, Plus, Search } from 'lucide-react';
 import { api, download, tzOffset } from '../api/client';
 import type { Movement, MovementType, Paged } from '../api/types';
 import { P, useAuth } from '../auth/AuthContext';
+import { useWarehouse } from '../auth/WarehouseContext';
 import { PageHead } from '../components/Layout';
 import MovementForm, { canRecordMovements } from '../components/MovementForm';
-import { MovementBadge, QtyChange } from '../components/inventory';
+import { MovementBadge, QtyChange, WarehouseChip } from '../components/inventory';
 import { EmptyState, ErrorState, Pagination, SkeletonRows, useToast } from '../components/ui';
 import { daysAgo, fmt, toDayString } from '../lib/format';
 import { t, type TKey } from '../i18n';
 
-const TYPES: { key: '' | MovementType; label: TKey }[] = [
+type TypeFilter = '' | 'In' | 'Out' | 'Adjustment' | 'Transfer';
+const TYPES: { key: TypeFilter; label: TKey }[] = [
   { key: '', label: 'common.all' },
   { key: 'In', label: 'type.In' },
   { key: 'Out', label: 'type.Out' },
   { key: 'Adjustment', label: 'type.Adjustment' },
+  { key: 'Transfer', label: 'type.Transfer' },
 ];
 
 export default function MovementsPage() {
   const { can } = useAuth();
   const toast = useToast();
-  const [type, setType] = useState<'' | MovementType>('');
+  const [type, setType] = useState<TypeFilter>('');
+  const wh = useWarehouse();
   const [from, setFrom] = useState(daysAgo(29));
   const [to, setTo] = useState(toDayString(new Date()));
   const [search, setSearch] = useState('');
@@ -31,9 +35,9 @@ export default function MovementsPage() {
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => { const t = setTimeout(() => setQ(search), 300); return () => clearTimeout(t); }, [search]);
-  useEffect(() => setPage(1), [type, from, to, q]);
+  useEffect(() => setPage(1), [type, from, to, q, wh.param]);
 
-  const filter = { type: type || undefined, from, to, search: q, tz: tzOffset() };
+  const filter = { type: type || undefined, from, to, search: q, tz: tzOffset(), warehouseId: wh.param };
   const list = useQuery({
     queryKey: ['movements', { ...filter, page }],
     queryFn: () => api.get<Paged<Movement>>('/api/movements', { ...filter, page, pageSize: 20 }),
@@ -92,6 +96,7 @@ export default function MovementsPage() {
             <thead>
               <tr>
                 <th>{t('mv.col.date')}</th>
+                {!wh.param && <th>{t('mv.col.warehouse')}</th>}
                 <th>{t('mv.col.type')}</th>
                 <th>{t('mv.col.product')}</th>
                 <th className="end">{t('mv.col.qty')}</th>
@@ -101,7 +106,7 @@ export default function MovementsPage() {
                 <th>{t('mv.col.by')}</th>
               </tr>
             </thead>
-            {list.isLoading ? <SkeletonRows cols={8} /> : (
+            {list.isLoading ? <SkeletonRows cols={wh.param ? 8 : 9} /> : (
               <tbody>
                 {list.data?.items.map((m) => (
                   <tr key={m.id}>
@@ -109,6 +114,7 @@ export default function MovementsPage() {
                       {fmt.shortDate(new Date(m.occurredAt))}
                       <div className="cell-sub">{fmt.time(m.occurredAt)}</div>
                     </td>
+                    {!wh.param && <td><WarehouseChip code={m.warehouseCode} title={m.warehouseName} /></td>}
                     <td><MovementBadge type={m.type} /></td>
                     <td>
                       <div className="cell-title">{m.productName}</div>
@@ -123,7 +129,9 @@ export default function MovementsPage() {
                       <div className="cell-sub">{t('mv.perUnit', { p: fmt.money(m.unitPrice) })}</div>
                     </td>
                     <td>
-                      <div>{m.party ?? m.note ?? '—'}</div>
+                      <div>{m.counterpartWarehouseCode
+                        ? t(m.type === 'TransferOut' ? 'mv.transferTo' : 'mv.transferFrom', { code: m.counterpartWarehouseCode })
+                        : m.party ?? m.note ?? '—'}</div>
                       {m.reference && <div className="cell-sub"><span className="num">{m.reference}</span></div>}
                     </td>
                     <td className="cell-sub">{m.createdBy}</td>
