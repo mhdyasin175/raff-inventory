@@ -23,7 +23,7 @@ public class ReportsController(AppDbContext db) : ControllerBase
     public async Task<DashboardSummary> Summary(int tz = 0)
     {
         var products = db.Products.AsNoTracking().Where(p => p.IsActive);
-        var stock = await products
+        var stock = (await products
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -34,7 +34,8 @@ public class ReportsController(AppDbContext db) : ControllerBase
                 Low = g.Count(p => p.Quantity > 0 && p.Quantity <= p.ReorderLevel),
                 Out = g.Count(p => p.Quantity == 0),
             })
-            .FirstOrDefaultAsync();
+            .ToListAsync()) // one aggregate row (or none); avoids a row-limiting query without ORDER BY (EF warning 10103)
+            .FirstOrDefault();
 
         var (todayStart, _) = LocalDayBounds(DateOnly.FromDateTime(DateTime.UtcNow.AddMinutes(tz)), tz);
         var now = DateTime.UtcNow;
@@ -153,7 +154,7 @@ public class ReportsController(AppDbContext db) : ControllerBase
 
     private static async Task<RangeSummary> Range(IQueryable<StockMovement> q, DateTime start, DateTime end)
     {
-        var r = await q.Where(m => m.OccurredAt >= start && m.OccurredAt < end)
+        var r = (await q.Where(m => m.OccurredAt >= start && m.OccurredAt < end)
             .Select(m => new { m.Type, m.QuantityChange, m.UnitPrice, Cost = m.Product.CostPrice })
             .GroupBy(_ => 1)
             .Select(g => new RangeSummary(
@@ -163,7 +164,8 @@ public class ReportsController(AppDbContext db) : ControllerBase
                 g.Sum(m => m.Type == MovementType.In ? m.QuantityChange * m.UnitPrice : 0m),
                 g.Sum(m => m.Type == MovementType.Out ? -m.QuantityChange * m.UnitPrice : 0m),
                 g.Sum(m => m.Type == MovementType.Out ? -m.QuantityChange * (m.UnitPrice - m.Cost) : 0m)))
-            .FirstOrDefaultAsync();
+            .ToListAsync()) // one aggregate row (or none); avoids a row-limiting query without ORDER BY (EF warning 10103)
+            .FirstOrDefault();
         return r ?? new RangeSummary(0, 0, 0, 0, 0, 0);
     }
 
